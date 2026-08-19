@@ -25,20 +25,32 @@ export default function AdminLoginPage() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
         password,
       });
 
-      if (error) {
-        setError(error.message);
-      } else {
+      if (authError) {
+        console.error("Auth error:", authError);
+        setError(authError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (data?.user) {
         router.push("/admin/dashboard");
         router.refresh();
+      } else {
+        setError("Login failed. Please check your credentials.");
+        setLoading(false);
       }
-    } catch {
-      setError("An unexpected error occurred. Please try again.");
-    } finally {
+    } catch (err) {
+      console.error("Login exception:", err);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
       setLoading(false);
     }
   };

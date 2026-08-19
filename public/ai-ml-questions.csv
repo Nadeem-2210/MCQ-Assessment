@@ -1,0 +1,61 @@
+Question,Option A,Option B,Option C,Option D,Correct Answer
+What does LLM stand for in AI?,Large Learning Model,Large Language Model,Linear Language Model,Logical Learning Machine,B
+Which company developed GPT-4?,Google,Meta,OpenAI,Microsoft,C
+What is the primary function of a tokenizer in LLMs?,To encrypt data,To split text into smaller units,To compress files,To validate syntax,B
+What architecture do most modern LLMs use?,CNN,RNN,Transformer,LSTM,C
+What is the attention mechanism in transformers used for?,Memory storage,Weighing importance of different input parts,Data compression,Error correction,B
+Which Python library is most commonly used for deep learning?,NumPy,Pandas,PyTorch,Matplotlib,C
+What does GPU stand for?,General Processing Unit,Graphics Processing Unit,Global Processing Unit,Geometric Processing Unit,B
+What is fine-tuning in the context of LLMs?,Training from scratch,Adjusting a pre-trained model for specific tasks,Removing model layers,Increasing model size,B
+What is a hallucination in LLMs?,A visual output,Generating false or fabricated information,A type of activation function,A memory leak,B
+What is the purpose of the softmax function?,Data normalization,Converting logits to probabilities,Feature extraction,Gradient computation,B
+What is Python's primary advantage for AI development?,Fastest execution speed,Rich ecosystem of libraries,Lowest memory usage,Best for mobile apps,B
+Which library is used for numerical computing in Python?,Django,Flask,NumPy,Requests,C
+What does API stand for?,Application Programming Interface,Automated Program Integration,Application Process Interface,Advanced Programming Interface,A
+What is a neural network inspired by?,Computer circuits,Human brain,Mathematical equations,Database systems,B
+What is backpropagation used for?,Forward data flow,Training neural networks by adjusting weights,Data preprocessing,Model deployment,B
+What is the role of an activation function?,To store data,To introduce non-linearity,To compress models,To validate inputs,B
+What is transfer learning?,Learning multiple languages,Using pre-trained models for new tasks,Transferring data between systems,Learning without data,B
+What does NLP stand for?,Neural Language Processing,Natural Language Processing,Network Language Protocol,Numeric Logic Processing,B
+What is a prompt in the context of LLMs?,A system error,An input text given to generate output,A type of neural network,A training dataset,B
+What is zero-shot learning?,Learning with no examples,Learning with one example,Learning with many examples,Learning without a model,A
+What is few-shot learning?,Learning with no data,Learning with a small number of examples,Learning with big data,Learning without supervision,B
+What is the temperature parameter in LLMs?,Model's physical temperature,Controls randomness in output generation,Training speed,Memory allocation,B
+What is RAG in AI?,Random Access Generation,Retrieval Augmented Generation,Rapid AI Growth,Recursive Algorithm Generation,B
+What is an embedding in NLP?,A type of database,A numerical representation of text,A compression algorithm,A visualization tool,B
+What is the purpose of RLHF?,Reinforcement Learning from Human Feedback,Random Learning from Historical Files,Recursive Learning for High Frequency,Real-time Learning for Hardware,A
+What is a vector database used for?,Storing images only,Storing and querying embeddings efficiently,Running SQL queries,File compression,B
+What is LangChain?,A blockchain for languages,A framework for building LLM applications,A translation service,A programming language,B
+What is an AI agent?,A human AI researcher,An autonomous system that can take actions,A type of neural network,A dataset,B
+What is the ReAct pattern in agentic AI?,A chemical reaction model,Reasoning and Acting pattern for agents,A data format,A training technique,B
+What is tool use in agentic AI?,Physical robot tools,Allowing AI to call external functions/APIs,A debugging method,A visualization technique,B
+What is chain-of-thought prompting?,Linking multiple models,Encouraging step-by-step reasoning,A type of encryption,Database chaining,B
+What is a generative model?,A model that only classifies,A model that creates new content,A model that only retrieves,A model that compresses data,B
+What is the difference between GPT and BERT?,GPT is autoregressive; BERT is bidirectional,They are identical,GPT is older than BERT,BERT generates text; GPT classifies,A
+What is a diffusion model?,A model for text generation only,A model that generates images by denoising,A networking protocol,A database model,B
+What does DALL-E generate?,Text,Images from text descriptions,Audio,Videos only,B
+What is Stable Diffusion?,A chemistry concept,An open-source image generation model,A database system,A network protocol,B
+What is the context window in LLMs?,A GUI element,Maximum tokens the model can process at once,A type of memory,A visualization tool,B
+What is model quantization?,Making models larger,Reducing model precision to decrease size,Adding more parameters,Increasing accuracy,B
+What is LoRA in fine-tuning?,A type of dataset,Low-Rank Adaptation for efficient fine-tuning,A learning rate,A loss function,B
+What is a system prompt?,An error message,Instructions that define AI behavior,A type of database,A compression method,B
+What is the purpose of guardrails in AI?,Physical barriers,Safety measures to control AI outputs,Performance optimization,Data storage,B
+What is Constitutional AI?,AI for legal documents,Training AI to follow ethical principles,Government AI systems,A type of neural network,B
+What is multimodal AI?,AI using single data type,AI that processes multiple data types like text and images,AI for multiple users,AI with multiple outputs,B
+What is the Transformer architecture's key innovation?,Recurrence,Self-attention mechanism,Convolution,Pooling,B
+What is beam search?,A lighting algorithm,A decoding strategy for text generation,A training method,A data structure,B
+What is greedy decoding?,Selecting the most probable token at each step,Random selection,Training technique,Compression method,A
+What is perplexity in language models?,Model confusion,A metric measuring prediction quality,A type of layer,An activation function,B
+What is BLEU score used for?,Image quality,Evaluating machine translation quality,Model speed,Memory usage,B
+What is semantic search?,Keyword matching only,Search based on meaning and context,Database indexing,File searching,B
+What is the purpose of chunking in RAG?,Data encryption,Splitting documents into smaller pieces,Model training,Image processing,B
+What is prompt engineering?,Building hardware,Designing effective prompts for AI models,Network configuration,Database design,B
+What is an AI hallucination mitigation strategy?,Increasing temperature,Using RAG for grounding responses,Removing all training data,Disabling the model,B
+What is function calling in LLMs?,Recursive functions,Allowing LLMs to invoke external tools,Internal model functions,Debugging feature,B
+What is the role of a retriever in RAG?,Generate text,Fetch relevant documents from a knowledge base,Train models,Compress data,B
+What is OpenAI's Codex trained on?,Images,Code and natural language,Audio files,Video content,B
+What is GitHub Copilot?,A file manager,An AI-powered code completion tool,A version control system,A testing framework,B
+What is the main challenge of agentic AI?,Too fast execution,Maintaining safety and alignment,Limited memory,Slow processing,B
+What is AutoGPT?,A car AI system,An autonomous AI agent framework,A graphics tool,A database system,B
+What is the planning capability in AI agents?,Data storage,Breaking down complex tasks into steps,Image recognition,Text compression,B
+What is memory in AI agents?,RAM only,Storing and recalling past interactions,Hard drive space,Cache memory,B

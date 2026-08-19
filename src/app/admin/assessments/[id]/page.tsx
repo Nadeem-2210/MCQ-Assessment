@@ -14,14 +14,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/client";
-import { Assessment, Question, Attempt } from "@/types";
+import { Assessment, Question, Attempt, Response } from "@/types";
 import { formatDate, generateExamLink } from "@/lib/utils";
 import { 
   ArrowLeft, Copy, Clock, FileText, Users, CheckCircle, 
-  XCircle, AlertTriangle, ExternalLink 
+  XCircle, AlertTriangle, ExternalLink, Trash2, Eye, Loader2
 } from "lucide-react";
+
+interface AttemptWithResponses extends Attempt {
+  responses?: (Response & { question?: Question })[];
+}
 
 export default function AssessmentDetailPage() {
   const router = useRouter();
@@ -33,6 +45,12 @@ export default function AssessmentDetailPage() {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  
+  // Dialog states
+  const [deleteAttemptId, setDeleteAttemptId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [viewAttempt, setViewAttempt] = useState<AttemptWithResponses | null>(null);
+  const [loadingResponses, setLoadingResponses] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -103,6 +121,57 @@ export default function AssessmentDetailPage() {
     }
   };
 
+  const deleteAttempt = async () => {
+    if (!deleteAttemptId) return;
+    
+    setDeleting(true);
+    const supabase = createClient();
+
+    // Delete responses first
+    await supabase
+      .from("responses")
+      .delete()
+      .eq("attempt_id", deleteAttemptId);
+
+    // Delete attempt
+    const { error } = await supabase
+      .from("attempts")
+      .delete()
+      .eq("id", deleteAttemptId);
+
+    if (!error) {
+      setAttempts(attempts.filter(a => a.id !== deleteAttemptId));
+    }
+
+    setDeleting(false);
+    setDeleteAttemptId(null);
+  };
+
+  const viewAttemptDetails = async (attempt: Attempt) => {
+    setLoadingResponses(true);
+    setViewAttempt(attempt);
+
+    const supabase = createClient();
+    
+    // Load responses for this attempt
+    const { data: responses } = await supabase
+      .from("responses")
+      .select("*")
+      .eq("attempt_id", attempt.id);
+
+    // Map responses with question data
+    const responsesWithQuestions = responses?.map(r => ({
+      ...r,
+      question: questions.find(q => q.id === r.question_id)
+    })) || [];
+
+    setViewAttempt({
+      ...attempt,
+      responses: responsesWithQuestions
+    });
+    setLoadingResponses(false);
+  };
+
   const getStatusBadge = (attempt: Attempt) => {
     if (attempt.status === "submitted") {
       return <Badge variant="success">Submitted</Badge>;
@@ -120,7 +189,7 @@ export default function AssessmentDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
@@ -128,12 +197,10 @@ export default function AssessmentDetailPage() {
   if (!assessment) return null;
 
   const examLink = generateExamLink(assessmentId);
-  const avgScore = attempts.length > 0
+  const completedAttempts = attempts.filter(a => a.score !== null);
+  const avgScore = completedAttempts.length > 0
     ? Math.round(
-        attempts
-          .filter(a => a.score !== null)
-          .reduce((sum, a) => sum + (a.score || 0), 0) /
-        attempts.filter(a => a.score !== null).length
+        completedAttempts.reduce((sum, a) => sum + (a.score || 0), 0) / completedAttempts.length
       )
     : 0;
 
@@ -246,7 +313,7 @@ export default function AssessmentDetailPage() {
         {/* Attempts Table */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Attempts</CardTitle>
+            <CardTitle>Attempts ({attempts.length})</CardTitle>
             <CardDescription>
               All trainee attempts for this assessment
             </CardDescription>
@@ -266,7 +333,7 @@ export default function AssessmentDetailPage() {
                     <TableHead>Violations</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Started</TableHead>
-                    <TableHead>Submitted</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -282,10 +349,13 @@ export default function AssessmentDetailPage() {
                         {attempt.score !== null ? (
                           <span className={
                             (attempt.score / attempt.total_questions) >= 0.6
-                              ? "text-green-600 font-medium"
-                              : "text-red-600 font-medium"
+                              ? "text-green-600 font-semibold"
+                              : "text-red-600 font-semibold"
                           }>
                             {attempt.score}/{attempt.total_questions}
+                            <span className="text-gray-400 text-xs ml-1">
+                              ({Math.round((attempt.score / attempt.total_questions) * 100)}%)
+                            </span>
                           </span>
                         ) : (
                           <span className="text-gray-400">-</span>
@@ -308,8 +378,26 @@ export default function AssessmentDetailPage() {
                       <TableCell className="text-gray-500 text-sm">
                         {formatDate(attempt.started_at)}
                       </TableCell>
-                      <TableCell className="text-gray-500 text-sm">
-                        {attempt.submitted_at ? formatDate(attempt.submitted_at) : "-"}
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => viewAttemptDetails(attempt)}
+                            disabled={attempt.status === "in_progress"}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setDeleteAttemptId(attempt.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -365,6 +453,150 @@ export default function AssessmentDetailPage() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteAttemptId} onOpenChange={() => setDeleteAttemptId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Attempt?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete this attempt and all associated responses. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteAttemptId(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={deleteAttempt}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Attempt Dialog */}
+      <Dialog open={!!viewAttempt} onOpenChange={() => setViewAttempt(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Answer Sheet - {viewAttempt?.trainee_name}
+            </DialogTitle>
+            <DialogDescription>
+              <div className="flex gap-4 mt-2">
+                <span>Email: {viewAttempt?.trainee_email}</span>
+                <span>Score: {viewAttempt?.score}/{viewAttempt?.total_questions}</span>
+                <span>Violations: {viewAttempt?.violations?.length || 0}</span>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingResponses ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <div className="space-y-4 mt-4">
+              {/* Violations Summary */}
+              {viewAttempt?.violations && viewAttempt.violations.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-red-800 mb-2">
+                    <AlertTriangle className="w-4 h-4 inline mr-2" />
+                    Violations ({viewAttempt.violations.length})
+                  </h4>
+                  <ul className="text-sm text-red-700 space-y-1 max-h-32 overflow-y-auto">
+                    {viewAttempt.violations.map((v, i) => (
+                      <li key={i}>
+                        <span className="font-medium">{v.type.replace(/_/g, ' ')}:</span> {v.details || '-'}
+                        <span className="text-red-500 text-xs ml-2">
+                          ({new Date(v.timestamp).toLocaleTimeString()})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Answers */}
+              <div className="space-y-3">
+                {viewAttempt?.responses?.map((response, index) => {
+                  const question = response.question;
+                  if (!question) return null;
+
+                  return (
+                    <div 
+                      key={response.id} 
+                      className={`border rounded-lg p-4 ${
+                        response.is_correct 
+                          ? 'bg-green-50 border-green-200' 
+                          : 'bg-red-50 border-red-200'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className={`text-sm font-medium px-2 py-1 rounded ${
+                          response.is_correct 
+                            ? 'bg-green-200 text-green-800' 
+                            : 'bg-red-200 text-red-800'
+                        }`}>
+                          Q{index + 1}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 mb-2">
+                            {question.question_text}
+                          </p>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            {(['A', 'B', 'C', 'D'] as const).map(opt => {
+                              const optKey = `option_${opt.toLowerCase()}` as keyof Question;
+                              const isSelected = response.selected_answer === opt;
+                              const isCorrect = question.correct_answer === opt;
+                              
+                              let bgClass = 'bg-gray-100';
+                              if (isCorrect) bgClass = 'bg-green-200 text-green-900';
+                              else if (isSelected && !isCorrect) bgClass = 'bg-red-200 text-red-900';
+
+                              return (
+                                <div key={opt} className={`p-2 rounded ${bgClass}`}>
+                                  <span className="font-medium">{opt}:</span> {question[optKey] as string}
+                                  {isCorrect && <CheckCircle className="w-4 h-4 inline ml-2 text-green-600" />}
+                                  {isSelected && !isCorrect && <XCircle className="w-4 h-4 inline ml-2 text-red-600" />}
+                                  {isSelected && <span className="text-xs ml-1">(Selected)</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {!response.selected_answer && (
+                            <p className="text-orange-600 text-sm mt-2">
+                              <AlertTriangle className="w-4 h-4 inline mr-1" />
+                              Not answered
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setViewAttempt(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

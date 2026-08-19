@@ -2,13 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Trophy, XCircle } from "lucide-react";
+import { CheckCircle, Trophy, XCircle, AlertTriangle } from "lucide-react";
 import { Suspense } from "react";
 
 function ExamCompleteContent() {
   const searchParams = useSearchParams();
   const score = parseInt(searchParams.get("score") || "0", 10);
   const total = parseInt(searchParams.get("total") || "0", 10);
+  const violations = parseInt(searchParams.get("violations") || "0", 10);
   const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
   const passed = percentage >= 60;
 
@@ -67,6 +68,16 @@ function ExamCompleteContent() {
               </>
             )}
           </div>
+
+          {/* Violations */}
+          {violations > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-center justify-center gap-2 text-red-700">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-sm font-medium">{violations} violation(s) recorded</span>
+              </div>
+            </div>
+          )}
 
           {/* Info */}
           <p className="text-sm text-gray-500">

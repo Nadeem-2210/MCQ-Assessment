@@ -54,13 +54,36 @@ export default function NewAssessmentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    
+    // Validation
+    if (!trimmedName) {
       setError("Please enter an assessment name");
+      return;
+    }
+
+    if (trimmedName.length < 3) {
+      setError("Assessment name must be at least 3 characters long");
+      return;
+    }
+
+    if (trimmedName.length > 200) {
+      setError("Assessment name must be less than 200 characters");
+      return;
+    }
+
+    if (durationMinutes < 1 || durationMinutes > 180) {
+      setError("Duration must be between 1 and 180 minutes");
       return;
     }
     
     if (parsedQuestions.length === 0) {
       setError("Please upload an Excel file with questions");
+      return;
+    }
+
+    if (parsedQuestions.length > 500) {
+      setError("Maximum 500 questions allowed per assessment");
       return;
     }
 
@@ -87,7 +110,7 @@ export default function NewAssessmentPage() {
         .from("assessments")
         .insert({
           admin_id: user.id,
-          name: name.trim(),
+          name: trimmedName,
           duration_minutes: durationMinutes,
           num_questions: parsedQuestions.length,
           is_active: true,
@@ -97,14 +120,14 @@ export default function NewAssessmentPage() {
 
       if (assessmentError) throw assessmentError;
 
-      // Insert questions
+      // Insert questions (sanitize text content)
       const questionsToInsert = parsedQuestions.map((q, index) => ({
         assessment_id: assessment.id,
-        question_text: q.question_text,
-        option_a: q.option_a,
-        option_b: q.option_b,
-        option_c: q.option_c,
-        option_d: q.option_d,
+        question_text: q.question_text.substring(0, 2000), // Limit question length
+        option_a: q.option_a.substring(0, 500),
+        option_b: q.option_b.substring(0, 500),
+        option_c: q.option_c.substring(0, 500),
+        option_d: q.option_d.substring(0, 500),
         correct_answer: q.correct_answer,
         order_index: index + 1,
       }));
@@ -117,6 +140,7 @@ export default function NewAssessmentPage() {
 
       router.push(`/admin/assessments/${assessment.id}`);
     } catch (err) {
+      console.error("Create assessment error:", err);
       setError(err instanceof Error ? err.message : "Failed to create assessment");
     } finally {
       setSubmitting(false);

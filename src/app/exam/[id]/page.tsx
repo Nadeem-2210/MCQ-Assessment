@@ -21,7 +21,7 @@ import { useTimer } from "@/hooks/useTimer";
 import { Assessment, Question, ViolationLog } from "@/types";
 import { 
   Clock, ChevronLeft, ChevronRight, AlertTriangle, 
-  Camera, Send, Loader2, CheckCircle, Flag, Mic
+  Camera, Send, Loader2, CheckCircle, Flag, Mic, Timer, Lock
 } from "lucide-react";
 
 export default function ExamPage() {
@@ -40,13 +40,34 @@ export default function ExamPage() {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [showViolationAlert, setShowViolationAlert] = useState(false);
   const [lastViolation, setLastViolation] = useState<ViolationLog | null>(null);
+  const [isExamExpired, setIsExamExpired] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'saving' | 'submitting' | 'submitted'>('idle');
+  
+  // Refs to prevent duplicate submissions and race conditions
   const isSubmittingRef = useRef(false);
+  const answersRef = useRef(answers);
+  const questionsLoadedRef = useRef(false);
 
-  const handleAutoSubmit = useCallback(() => {
-    if (!isSubmittingRef.current) {
-      submitExam(true);
+  // Keep answers ref updated
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  // Auto-submit handler - called when timer expires or max violations reached
+  const handleAutoSubmit = useCallback(async () => {
+    if (isSubmittingRef.current || submissionStatus === 'submitted') {
+      return;
     }
-  }, []);
+    
+    // Mark exam as expired to disable further input
+    setIsExamExpired(true);
+    
+    // Wait a short moment for any pending answer saves
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Perform submission with latest answers
+    submitExam(true);
+  }, [submissionStatus]);
 
   const handleViolation = useCallback((violation: ViolationLog) => {
     setLastViolation(violation);
@@ -68,14 +89,24 @@ export default function ExamPage() {
 
   const { 
     formattedTime, 
+    timeRemaining,
     isWarning, 
     isCritical,
+    isExpired: timerExpired,
+    hasEnded,
   } = useTimer({
     durationMinutes: assessment?.duration_minutes || 30,
     startTime: typeof window !== 'undefined' ? localStorage.getItem(`exam_start_${assessmentId}`) || undefined : undefined,
     onTimeUp: handleAutoSubmit,
     storageKey: `exam_timer_${assessmentId}`,
   });
+
+  // Effect to handle timer expiration
+  useEffect(() => {
+    if ((timerExpired || hasEnded) && !isExamExpired && !isSubmittingRef.current && questionsLoadedRef.current) {
+      handleAutoSubmit();
+    }
+  }, [timerExpired, hasEnded, isExamExpired, handleAutoSubmit]);
 
   useEffect(() => {
     const storedAttemptId = localStorage.getItem(`attempt_${assessmentId}`);
@@ -171,10 +202,16 @@ export default function ExamPage() {
     // Randomize question order for the exam
     const shuffled = [...(questionsData || [])].sort(() => Math.random() - 0.5);
     setQuestions(shuffled as Question[]);
+    questionsLoadedRef.current = true;
     setLoading(false);
   };
 
   const selectAnswer = (answer: 'A' | 'B' | 'C' | 'D') => {
+    // Prevent answering if exam has expired
+    if (isExamExpired || submissionStatus !== 'idle') {
+      return;
+    }
+    
     const questionId = questions[currentIndex]?.id;
     if (questionId) {
       setAnswers(prev => ({ ...prev, [questionId]: answer }));
@@ -182,6 +219,8 @@ export default function ExamPage() {
   };
 
   const toggleFlag = () => {
+    if (isExamExpired || submissionStatus !== 'idle') return;
+    
     const questionId = questions[currentIndex]?.id;
     if (questionId) {
       setFlaggedQuestions(prev => {
@@ -203,14 +242,28 @@ export default function ExamPage() {
   };
 
   const submitExam = async (isAutoSubmit: boolean = false) => {
-    if (!attemptId || isSubmittingRef.current) return;
+    // Prevent duplicate submissions with multiple checks
+    if (isSubmittingRef.current || submitting || submissionStatus === 'submitted') {
+      return;
+    }
     
     isSubmittingRef.current = true;
     setSubmitting(true);
     setShowSubmitDialog(false);
+    setSubmissionStatus('saving');
+
+    // Use the ref to get the latest answers
+    const currentAnswers = answersRef.current;
 
     try {
       const supabase = createClient();
+
+      // First, save answers to localStorage one final time
+      if (Object.keys(currentAnswers).length > 0) {
+        localStorage.setItem(`exam_answers_${assessmentId}`, JSON.stringify(currentAnswers));
+      }
+
+      setSubmissionStatus('submitting');
 
       // Get ALL question data including correct answers for scoring
       const { data: questionsWithAnswers, error: questionsError } = await supabase
@@ -227,7 +280,7 @@ export default function ExamPage() {
         throw new Error("No questions found for scoring");
       }
 
-      // Calculate score
+      // Calculate score using the latest answers
       let score = 0;
       const responses: { 
         attempt_id: string; 
@@ -237,12 +290,12 @@ export default function ExamPage() {
       }[] = [];
 
       questionsWithAnswers.forEach(q => {
-        const selected = answers[q.id] || null;
+        const selected = currentAnswers[q.id] || null;
         const isCorrect = selected !== null && selected === q.correct_answer;
         if (isCorrect) score++;
 
         responses.push({
-          attempt_id: attemptId,
+          attempt_id: attemptId!,
           question_id: q.id,
           selected_answer: selected,
           is_correct: isCorrect,
@@ -251,10 +304,9 @@ export default function ExamPage() {
 
       console.log("Score calculation:", { 
         totalQuestions: questionsWithAnswers.length, 
-        answeredQuestions: Object.keys(answers).length,
+        answeredQuestions: Object.keys(currentAnswers).length,
         score,
-        answers,
-        correctAnswers: questionsWithAnswers.map(q => ({ id: q.id, correct: q.correct_answer }))
+        isAutoSubmit
       });
 
       // Save responses
@@ -282,6 +334,8 @@ export default function ExamPage() {
         throw updateError;
       }
 
+      setSubmissionStatus('submitted');
+
       // Clear localStorage
       localStorage.removeItem(`attempt_${assessmentId}`);
       localStorage.removeItem(`exam_start_${assessmentId}`);
@@ -300,6 +354,7 @@ export default function ExamPage() {
       console.error("Submit error:", error);
       isSubmittingRef.current = false;
       setSubmitting(false);
+      setSubmissionStatus('idle');
     }
   };
 
@@ -316,6 +371,7 @@ export default function ExamPage() {
   const isCurrentFlagged = currentQuestion ? flaggedQuestions.has(currentQuestion.id) : false;
   const answeredCount = Object.values(answers).filter(a => a !== null).length;
   const progress = (answeredCount / questions.length) * 100;
+  const isDisabled = isExamExpired || submissionStatus !== 'idle';
 
   return (
     <div className="min-h-screen bg-gray-100 exam-mode">
@@ -350,7 +406,7 @@ export default function ExamPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {/* Camera Preview with Status */}
               <div className="relative">
                 <div className={`w-28 h-20 bg-gray-900 rounded-lg overflow-hidden border-3 transition-colors ${
@@ -391,35 +447,75 @@ export default function ExamPage() {
                 </Badge>
               )}
 
-              {/* Timer */}
-              <div className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-lg font-bold
-                ${isCritical ? 'bg-red-100 text-red-700 animate-pulse border-2 border-red-500' : 
-                  isWarning ? 'bg-yellow-100 text-yellow-700 border-2 border-yellow-500' : 
-                  'bg-gray-100 text-gray-700'}`}
+              {/* Timer Section - Improved UI */}
+              <div className={`relative flex items-center gap-2 px-4 py-2 rounded-xl font-mono text-lg font-bold transition-all duration-300 min-w-[140px] justify-center
+                ${isExamExpired || hasEnded
+                  ? 'bg-gray-800 text-white border-2 border-gray-600' 
+                  : isCritical 
+                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white animate-pulse border-2 border-red-400 shadow-lg shadow-red-500/50' 
+                    : isWarning 
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-2 border-amber-400 shadow-lg shadow-amber-500/30' 
+                      : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-2 border-blue-400'
+                }`}
               >
-                <Clock className="w-5 h-5" />
-                {formattedTime}
-              </div>
-
-              {/* Submit button - Improved UI */}
-              <Button 
-                onClick={() => setShowSubmitDialog(true)}
-                disabled={submitting}
-                size="lg"
-                className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold px-6 shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                {submitting ? (
+                {isExamExpired || hasEnded ? (
                   <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Submitting...
+                    <Lock className="w-5 h-5" />
+                    <span>Time Up</span>
                   </>
                 ) : (
                   <>
-                    <Send className="w-5 h-5 mr-2" />
-                    Submit Exam
+                    <Timer className={`w-5 h-5 ${isCritical ? 'animate-bounce' : ''}`} />
+                    <span>{formattedTime}</span>
                   </>
                 )}
-              </Button>
+                
+                {/* Time indicator bar */}
+                {!isExamExpired && !hasEnded && timeRemaining > 0 && (
+                  <div className="absolute -bottom-1 left-2 right-2 h-1 bg-white/30 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-1000 ${
+                        isCritical ? 'bg-red-300' : isWarning ? 'bg-amber-300' : 'bg-blue-300'
+                      }`}
+                      style={{ 
+                        width: `${Math.min(100, (timeRemaining / ((assessment?.duration_minutes || 30) * 60)) * 100)}%` 
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Submit Section - Improved UI */}
+              <div className="flex items-center">
+                {submissionStatus === 'submitted' ? (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-xl border-2 border-green-300">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="font-semibold">Submitted</span>
+                  </div>
+                ) : submissionStatus === 'saving' || submissionStatus === 'submitting' ? (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-xl border-2 border-blue-300">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="font-semibold">
+                      {submissionStatus === 'saving' ? 'Saving...' : 'Submitting...'}
+                    </span>
+                  </div>
+                ) : isExamExpired || hasEnded ? (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-xl border-2 border-gray-300">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="font-semibold">Auto-submitting...</span>
+                  </div>
+                ) : (
+                  <Button 
+                    onClick={() => setShowSubmitDialog(true)}
+                    disabled={isDisabled}
+                    size="lg"
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold px-6 shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl border-2 border-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Send className="w-5 h-5 mr-2" />
+                    Submit Exam
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -455,7 +551,8 @@ export default function ExamPage() {
                     variant={isCurrentFlagged ? "default" : "outline"}
                     size="sm"
                     onClick={toggleFlag}
-                    className={isCurrentFlagged ? "bg-orange-500 hover:bg-orange-600" : ""}
+                    disabled={isDisabled}
+                    className={`${isCurrentFlagged ? "bg-orange-500 hover:bg-orange-600" : ""} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Flag className={`w-4 h-4 mr-1 ${isCurrentFlagged ? 'fill-white' : ''}`} />
                     {isCurrentFlagged ? "Flagged" : "Flag for Review"}
@@ -480,10 +577,17 @@ export default function ExamPage() {
                       <button
                         key={option}
                         onClick={() => selectAnswer(option)}
+                        disabled={isDisabled}
                         className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200
+                          ${isDisabled 
+                            ? 'opacity-60 cursor-not-allowed' 
+                            : ''
+                          }
                           ${isSelected 
                             ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-md' 
-                            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                            : isDisabled
+                              ? 'border-gray-200 bg-gray-50'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                           }`}
                       >
                         <div className="flex items-center gap-4">
@@ -502,6 +606,18 @@ export default function ExamPage() {
                     );
                   })}
                 </div>
+
+                {/* Expired Notice */}
+                {isDisabled && (
+                  <div className="mt-4 p-4 bg-gray-100 rounded-xl border-2 border-gray-300 flex items-center gap-3">
+                    <Lock className="w-5 h-5 text-gray-500" />
+                    <span className="text-gray-600 font-medium">
+                      {submissionStatus === 'submitted' 
+                        ? 'Your exam has been submitted.' 
+                        : 'Time is up. Your exam is being submitted automatically.'}
+                    </span>
+                  </div>
+                )}
 
                 {/* Navigation */}
                 <div className="flex items-center justify-between mt-8 pt-6 border-t">
@@ -605,7 +721,7 @@ export default function ExamPage() {
       </main>
 
       {/* Submit Confirmation Dialog - Improved UI */}
-      <Dialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
+      <Dialog open={showSubmitDialog && !isDisabled} onOpenChange={(open) => !isDisabled && setShowSubmitDialog(open)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader className="text-center pb-4">
             <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
@@ -618,6 +734,29 @@ export default function ExamPage() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Time Remaining */}
+            <div className={`text-center p-3 rounded-xl ${
+              isCritical ? 'bg-red-50 border border-red-200' : 
+              isWarning ? 'bg-amber-50 border border-amber-200' : 
+              'bg-blue-50 border border-blue-200'
+            }`}>
+              <div className="flex items-center justify-center gap-2">
+                <Timer className={`w-5 h-5 ${
+                  isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-blue-600'
+                }`} />
+                <span className={`font-mono text-xl font-bold ${
+                  isCritical ? 'text-red-700' : isWarning ? 'text-amber-700' : 'text-blue-700'
+                }`}>
+                  {formattedTime}
+                </span>
+                <span className={`text-sm ${
+                  isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-blue-600'
+                }`}>
+                  remaining
+                </span>
+              </div>
+            </div>
+
             {/* Progress Summary Cards */}
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
@@ -691,13 +830,14 @@ export default function ExamPage() {
               variant="outline" 
               onClick={() => setShowSubmitDialog(false)}
               className="flex-1 h-12"
+              disabled={submitting}
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
               Continue Exam
             </Button>
             <Button 
               onClick={() => submitExam(false)} 
-              disabled={submitting}
+              disabled={submitting || isDisabled}
               className="flex-1 h-12 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold shadow-lg"
             >
               {submitting ? (

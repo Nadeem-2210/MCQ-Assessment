@@ -26,6 +26,8 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     violations: [],
   });
 
+  const [faceStatus, setFaceStatus] = useState<'detected' | 'not_detected' | 'multiple'>('detected');
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -33,18 +35,18 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   
   // Tracking refs
-  const baselineFrameRef = useRef<ImageData | null>(null);
-  const frameHistoryRef = useRef<number[]>([]);
   const lastViolationTimeRef = useRef<Record<string, number>>({});
-  const audioBaselineRef = useRef<number>(0);
-  const audioSamplesRef = useRef<number[]>([]);
+  const noFaceCountRef = useRef<number>(0);
+  const multipleFaceCountRef = useRef<number>(0);
+  const audioBaselineRef = useRef<number>(20);
+  const consecutiveNoiseRef = useRef<number>(0);
 
   const addViolation = useCallback((type: ViolationType, details?: string) => {
-    // Cooldown: prevent same violation type within 10 seconds
+    // Cooldown: prevent same violation type within 8 seconds
     const now = Date.now();
     const lastTime = lastViolationTimeRef.current[type] || 0;
-    if (now - lastTime < 10000) {
-      return; // Skip if same violation within 10 seconds
+    if (now - lastTime < 8000) {
+      return;
     }
     lastViolationTimeRef.current[type] = now;
 
@@ -82,8 +84,8 @@ export function useProctoring(options: UseProctoringOptions = {}) {
           facingMode: "user"
         },
         audio: {
-          echoCancellation: true,
-          noiseSuppression: false, // We want to detect noise
+          echoCancellation: false,
+          noiseSuppression: false,
           autoGainControl: false,
         },
       });
@@ -107,22 +109,17 @@ export function useProctoring(options: UseProctoringOptions = {}) {
         micActive: true,
       }));
 
-      // Initialize audio analysis with better settings
+      // Initialize audio analysis
       const audioContext = new AudioContext();
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.3;
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.5;
       
       const source = audioContext.createMediaStreamSource(stream);
       source.connect(analyser);
       
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
-
-      // Calibrate audio baseline after 2 seconds
-      setTimeout(() => {
-        calibrateAudioBaseline();
-      }, 2000);
 
       return true;
     } catch (error) {
@@ -131,43 +128,11 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     }
   }, []);
 
-  // Calibrate audio baseline
-  const calibrateAudioBaseline = useCallback(() => {
-    if (!analyserRef.current) return;
-    
-    const analyser = analyserRef.current;
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    
-    // Take 5 samples over 1 second
-    let samples: number[] = [];
-    let count = 0;
-    
-    const takeSample = () => {
-      analyser.getByteFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      samples.push(sum / dataArray.length);
-      count++;
-      
-      if (count < 5) {
-        setTimeout(takeSample, 200);
-      } else {
-        // Set baseline as average + small buffer
-        audioBaselineRef.current = (samples.reduce((a, b) => a + b, 0) / samples.length) + 10;
-        console.log("Audio baseline calibrated:", audioBaselineRef.current);
-      }
-    };
-    
-    takeSample();
-  }, []);
-
-  // Camera monitoring - improved detection
+  // Camera monitoring - face detection
   useEffect(() => {
     if (!videoRef.current || !canvasRef.current || !state.cameraActive) return;
 
-    const analyzeFrame = () => {
+    const detectFace = () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas || video.readyState < 2) return;
@@ -179,171 +144,124 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
 
-      // 1. Calculate overall brightness
+      // Calculate brightness
       let totalBrightness = 0;
-      const pixelCount = data.length / 4;
+      const totalPixels = canvas.width * canvas.height;
       
       for (let i = 0; i < data.length; i += 4) {
         totalBrightness += (data[i] + data[i + 1] + data[i + 2]) / 3;
       }
-      const avgBrightness = totalBrightness / pixelCount;
+      const avgBrightness = totalBrightness / totalPixels;
 
-      // 2. Check for camera blocked (very dark)
-      if (avgBrightness < 20) {
-        addViolation("no_face", "Camera appears to be blocked or covered");
+      // Camera blocked check
+      if (avgBrightness < 15) {
+        noFaceCountRef.current++;
+        if (noFaceCountRef.current >= 3) {
+          setFaceStatus('not_detected');
+          addViolation("no_face", "Camera is blocked or covered");
+          noFaceCountRef.current = 0;
+        }
         return;
       }
 
-      // 3. Detect skin tones and estimate face regions
-      let skinPixels = 0;
-      const skinRegions: { x: number; y: number }[] = [];
+      // Detect skin-colored pixels
+      const skinPixels: { x: number; y: number }[] = [];
       
-      for (let y = 0; y < canvas.height; y += 4) {
-        for (let x = 0; x < canvas.width; x += 4) {
+      for (let y = 0; y < canvas.height; y += 3) {
+        for (let x = 0; x < canvas.width; x += 3) {
           const idx = (y * canvas.width + x) * 4;
           const r = data[idx];
           const g = data[idx + 1];
           const b = data[idx + 2];
           
-          // Improved skin tone detection for various skin colors
-          const isSkinTone = detectSkinTone(r, g, b);
-          
-          if (isSkinTone) {
-            skinPixels++;
-            skinRegions.push({ x, y });
+          if (isSkinColor(r, g, b)) {
+            skinPixels.push({ x, y });
           }
         }
       }
 
-      const totalSampled = (canvas.width / 4) * (canvas.height / 4);
-      const skinRatio = skinPixels / totalSampled;
+      const skinRatio = skinPixels.length / (totalPixels / 9);
 
-      // 4. Cluster skin regions to detect multiple faces/people
-      const clusters = clusterRegions(skinRegions, 40);
-      const significantClusters = clusters.filter(c => c.length > 15);
-
-      // Store frame data for motion detection
-      frameHistoryRef.current.push(skinRatio);
-      if (frameHistoryRef.current.length > 10) {
-        frameHistoryRef.current.shift();
-      }
-
-      // 5. Detect violations
+      // Find face regions using clustering
+      const faceClusters = findFaceClusters(skinPixels, canvas.width, canvas.height);
       
-      // No face detected (very low skin coverage)
-      if (skinRatio < 0.01 && avgBrightness > 30) {
-        addViolation("no_face", "No person detected in camera frame");
-      }
-      
-      // Multiple people detected (multiple significant clusters)
-      if (significantClusters.length >= 2) {
-        addViolation("multiple_faces", `Multiple people detected (${significantClusters.length} faces/regions)`);
-      }
-      
-      // Large object/phone detection (sudden increase in non-skin area in center)
-      if (baselineFrameRef.current) {
-        const centerRegion = getCenterRegionStats(data, canvas.width, canvas.height);
-        const baselineCenter = getCenterRegionStats(
-          baselineFrameRef.current.data, 
-          canvas.width, 
-          canvas.height
-        );
+      // Determine face status
+      if (skinRatio < 0.015 || faceClusters.length === 0) {
+        // No face detected
+        noFaceCountRef.current++;
+        multipleFaceCountRef.current = 0;
         
-        // Detect if something is blocking center (like a phone)
-        const brightnessChange = Math.abs(centerRegion.brightness - baselineCenter.brightness);
-        const colorChange = centerRegion.colorVariance - baselineCenter.colorVariance;
-        
-        if (brightnessChange > 50 && colorChange < -20) {
-          addViolation("no_face", "Object detected blocking camera (possible phone or device)");
+        if (noFaceCountRef.current >= 2) {
+          setFaceStatus('not_detected');
+          addViolation("no_face", "No face detected - please stay in frame");
+          noFaceCountRef.current = 0;
         }
+        
+        setState(prev => ({ ...prev, facesDetected: 0 }));
+      } else if (faceClusters.length >= 2) {
+        // Multiple faces detected
+        noFaceCountRef.current = 0;
+        multipleFaceCountRef.current++;
+        
+        if (multipleFaceCountRef.current >= 2) {
+          setFaceStatus('multiple');
+          addViolation("multiple_faces", `Multiple people detected (${faceClusters.length} faces)`);
+          multipleFaceCountRef.current = 0;
+        }
+        
+        setState(prev => ({ ...prev, facesDetected: faceClusters.length }));
+      } else {
+        // Single face detected - all good
+        noFaceCountRef.current = 0;
+        multipleFaceCountRef.current = 0;
+        setFaceStatus('detected');
+        setState(prev => ({ ...prev, facesDetected: 1 }));
       }
-
-      // Store baseline after first few frames
-      if (!baselineFrameRef.current && frameHistoryRef.current.length >= 5) {
-        baselineFrameRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      }
-
-      // Update state
-      setState(prev => ({ 
-        ...prev, 
-        facesDetected: significantClusters.length || (skinRatio > 0.02 ? 1 : 0)
-      }));
     };
 
-    const interval = setInterval(analyzeFrame, 2000);
+    const interval = setInterval(detectFace, 1500);
     return () => clearInterval(interval);
   }, [state.cameraActive, addViolation]);
 
-  // Improved audio monitoring
+  // Audio monitoring
   useEffect(() => {
     if (!analyserRef.current || !state.micActive) return;
 
     const analyser = analyserRef.current;
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    const timeDataArray = new Uint8Array(analyser.fftSize);
-    
-    let consecutiveHighNoise = 0;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
     const checkAudio = () => {
-      // Get frequency data
       analyser.getByteFrequencyData(dataArray);
-      // Get time domain data for better voice detection
-      analyser.getByteTimeDomainData(timeDataArray);
       
-      // Calculate average frequency level
-      let freqSum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        freqSum += dataArray[i];
+      // Calculate average volume
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
       }
-      const avgFreq = freqSum / bufferLength;
-      
-      // Calculate RMS from time domain (better for voice detection)
-      let rmsSum = 0;
-      for (let i = 0; i < timeDataArray.length; i++) {
-        const sample = (timeDataArray[i] - 128) / 128;
-        rmsSum += sample * sample;
-      }
-      const rms = Math.sqrt(rmsSum / timeDataArray.length) * 100;
-      
-      // Store samples for adaptive threshold
-      audioSamplesRef.current.push(rms);
-      if (audioSamplesRef.current.length > 50) {
-        audioSamplesRef.current.shift();
-      }
-      
-      // Calculate dynamic threshold
-      const avgRms = audioSamplesRef.current.reduce((a, b) => a + b, 0) / audioSamplesRef.current.length;
-      const threshold = Math.max(audioBaselineRef.current, avgRms * 2, 15);
-      
-      // Detect voice/noise
-      const isLoud = rms > threshold && avgFreq > 20;
-      
-      // Focus on speech frequencies (300Hz - 3400Hz)
-      let speechEnergy = 0;
-      const speechStart = Math.floor(300 / (audioContextRef.current?.sampleRate || 44100) * bufferLength * 2);
-      const speechEnd = Math.floor(3400 / (audioContextRef.current?.sampleRate || 44100) * bufferLength * 2);
-      
-      for (let i = speechStart; i < speechEnd && i < bufferLength; i++) {
-        speechEnergy += dataArray[i];
-      }
-      speechEnergy = speechEnergy / (speechEnd - speechStart);
-      
-      const isSpeech = speechEnergy > 40;
+      const avgVolume = sum / dataArray.length;
 
-      if (isLoud || isSpeech) {
-        consecutiveHighNoise++;
+      // Focus on speech frequencies (roughly 85Hz - 3000Hz)
+      let speechSum = 0;
+      const startBin = Math.floor(85 / (44100 / analyser.fftSize));
+      const endBin = Math.floor(3000 / (44100 / analyser.fftSize));
+      
+      for (let i = startBin; i < endBin && i < dataArray.length; i++) {
+        speechSum += dataArray[i];
+      }
+      const speechAvg = speechSum / (endBin - startBin);
+
+      // Detect voice/noise
+      const isLoud = avgVolume > 35 || speechAvg > 50;
+
+      if (isLoud) {
+        consecutiveNoiseRef.current++;
         
-        // Trigger after sustained noise (1.5 seconds)
-        if (consecutiveHighNoise >= 3) {
-          addViolation(
-            "audio_alert", 
-            `Voice or noise detected (level: ${rms.toFixed(1)}, speech: ${speechEnergy.toFixed(1)})`
-          );
-          consecutiveHighNoise = 0;
+        if (consecutiveNoiseRef.current >= 4) {
+          addViolation("audio_alert", `Voice or loud noise detected (level: ${Math.round(avgVolume)})`);
+          consecutiveNoiseRef.current = 0;
         }
       } else {
-        consecutiveHighNoise = Math.max(0, consecutiveHighNoise - 1);
+        consecutiveNoiseRef.current = Math.max(0, consecutiveNoiseRef.current - 1);
       }
     };
 
@@ -361,13 +279,6 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     }
   }, []);
 
-  // Exit fullscreen
-  const exitFullscreen = useCallback(() => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    }
-  }, []);
-
   // Fullscreen change handler
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -375,7 +286,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       
       setState(prev => {
         if (prev.isFullscreen && !isFullscreen) {
-          addViolation("fullscreen_exit", "User exited fullscreen mode");
+          addViolation("fullscreen_exit", "Exited fullscreen mode");
         }
         return { ...prev, isFullscreen };
       });
@@ -385,11 +296,11 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, [addViolation]);
 
-  // Visibility change (tab switch) handler
+  // Tab switch detection
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        addViolation("tab_switch", "User switched tabs or minimized window");
+        addViolation("tab_switch", "Switched tabs or minimized window");
       }
     };
 
@@ -401,7 +312,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   useEffect(() => {
     const handleBlur = () => {
       if (state.isFullscreen) {
-        addViolation("tab_switch", "User switched to another application");
+        addViolation("tab_switch", "Switched to another application");
       }
     };
 
@@ -409,16 +320,16 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     return () => window.removeEventListener("blur", handleBlur);
   }, [addViolation, state.isFullscreen]);
 
-  // Prevent copy/paste/right-click
+  // Prevent copy/paste
   useEffect(() => {
     const handleCopy = (e: ClipboardEvent) => {
       e.preventDefault();
-      addViolation("copy_attempt", "User attempted to copy content");
+      addViolation("copy_attempt", "Attempted to copy content");
     };
 
     const handlePaste = (e: ClipboardEvent) => {
       e.preventDefault();
-      addViolation("paste_attempt", "User attempted to paste content");
+      addViolation("paste_attempt", "Attempted to paste content");
     };
 
     const handleContextMenu = (e: MouseEvent) => {
@@ -436,22 +347,6 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     };
   }, [addViolation]);
 
-  // Keyboard shortcuts prevention
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        (e.ctrlKey && ['c', 'v', 'p', 'a', 'u'].includes(e.key.toLowerCase())) ||
-        e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()))
-      ) {
-        e.preventDefault();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
   // Cleanup
   useEffect(() => {
     return () => {
@@ -466,105 +361,104 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   return {
     state,
+    faceStatus,
     videoRef,
     initializeMedia,
     requestFullscreen,
-    exitFullscreen,
     addViolation,
   };
 }
 
-// Helper: Detect skin tone for various ethnicities
-function detectSkinTone(r: number, g: number, b: number): boolean {
-  // Convert to YCbCr color space (better for skin detection)
+// Check if a pixel color is skin-like
+function isSkinColor(r: number, g: number, b: number): boolean {
+  // YCbCr conversion for better skin detection
   const y = 0.299 * r + 0.587 * g + 0.114 * b;
   const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
   const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
   
-  // Skin tone ranges in YCbCr
-  const isSkinYCbCr = (
-    y > 80 &&
-    cb > 77 && cb < 127 &&
-    cr > 133 && cr < 173
-  );
+  // Skin ranges in YCbCr
+  if (y > 80 && cb > 77 && cb < 127 && cr > 133 && cr < 173) {
+    return true;
+  }
   
-  // Also check RGB rules for robustness
-  const isSkinRGB = (
-    r > 60 && r < 255 &&
-    g > 40 && g < 230 &&
-    b > 20 && b < 210 &&
-    r > g && r > b &&
-    Math.abs(r - g) > 10
-  );
+  // RGB backup check
+  if (r > 60 && g > 40 && b > 20 && r > g && r > b && (r - g) > 10 && (r - b) > 15) {
+    return true;
+  }
   
-  return isSkinYCbCr || isSkinRGB;
+  return false;
 }
 
-// Helper: Cluster nearby regions to detect multiple faces
-function clusterRegions(regions: { x: number; y: number }[], threshold: number): { x: number; y: number }[][] {
-  if (regions.length === 0) return [];
+// Find face clusters from skin pixels
+function findFaceClusters(pixels: { x: number; y: number }[], width: number, height: number) {
+  if (pixels.length < 20) return [];
   
+  // Simple grid-based clustering
+  const gridSize = 50;
+  const grid: Map<string, { x: number; y: number }[]> = new Map();
+  
+  // Group pixels into grid cells
+  for (const p of pixels) {
+    const cellX = Math.floor(p.x / gridSize);
+    const cellY = Math.floor(p.y / gridSize);
+    const key = `${cellX},${cellY}`;
+    
+    if (!grid.has(key)) {
+      grid.set(key, []);
+    }
+    grid.get(key)!.push(p);
+  }
+  
+  // Find connected regions
+  const visited = new Set<string>();
   const clusters: { x: number; y: number }[][] = [];
-  const visited = new Set<number>();
   
-  for (let i = 0; i < regions.length; i++) {
-    if (visited.has(i)) continue;
+  for (const [key, cellPixels] of grid) {
+    if (visited.has(key) || cellPixels.length < 5) continue;
     
-    const cluster: { x: number; y: number }[] = [regions[i]];
-    visited.add(i);
+    const cluster: { x: number; y: number }[] = [];
+    const queue = [key];
     
-    for (let j = i + 1; j < regions.length; j++) {
-      if (visited.has(j)) continue;
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
       
-      // Check if close to any point in cluster
-      const isClose = cluster.some(p => {
-        const dx = p.x - regions[j].x;
-        const dy = p.y - regions[j].y;
-        return Math.sqrt(dx * dx + dy * dy) < threshold;
-      });
+      const currentPixels = grid.get(current);
+      if (currentPixels) {
+        cluster.push(...currentPixels);
+      }
       
-      if (isClose) {
-        cluster.push(regions[j]);
-        visited.add(j);
+      // Check neighbors
+      const [cx, cy] = current.split(',').map(Number);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          const neighborKey = `${cx + dx},${cy + dy}`;
+          if (grid.has(neighborKey) && !visited.has(neighborKey)) {
+            queue.push(neighborKey);
+          }
+        }
       }
     }
     
-    clusters.push(cluster);
-  }
-  
-  return clusters;
-}
-
-// Helper: Get center region statistics
-function getCenterRegionStats(data: Uint8ClampedArray, width: number, height: number) {
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const regionSize = 50;
-  
-  let brightness = 0;
-  let colors: number[] = [];
-  let count = 0;
-  
-  for (let y = centerY - regionSize; y < centerY + regionSize; y += 2) {
-    for (let x = centerX - regionSize; x < centerX + regionSize; x += 2) {
-      if (x < 0 || x >= width || y < 0 || y >= height) continue;
+    // Only count as face if cluster is significant and in plausible area
+    if (cluster.length >= 30) {
+      // Calculate bounding box
+      const minX = Math.min(...cluster.map(p => p.x));
+      const maxX = Math.max(...cluster.map(p => p.x));
+      const minY = Math.min(...cluster.map(p => p.y));
+      const maxY = Math.max(...cluster.map(p => p.y));
       
-      const idx = (Math.floor(y) * width + Math.floor(x)) * 4;
-      const r = data[idx];
-      const g = data[idx + 1];
-      const b = data[idx + 2];
+      const clusterWidth = maxX - minX;
+      const clusterHeight = maxY - minY;
       
-      brightness += (r + g + b) / 3;
-      colors.push(r, g, b);
-      count++;
+      // Face-like aspect ratio check (height should be >= width for a face)
+      if (clusterHeight >= clusterWidth * 0.5 && clusterWidth >= 30 && clusterHeight >= 40) {
+        clusters.push(cluster);
+      }
     }
   }
   
-  const avgBrightness = count > 0 ? brightness / count : 0;
-  
-  // Calculate color variance
-  const avgColor = colors.reduce((a, b) => a + b, 0) / colors.length;
-  const variance = colors.reduce((sum, c) => sum + Math.pow(c - avgColor, 2), 0) / colors.length;
-  
-  return { brightness: avgBrightness, colorVariance: variance };
+  return clusters;
 }

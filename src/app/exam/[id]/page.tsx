@@ -55,7 +55,8 @@ export default function ExamPage() {
   }, []);
 
   const { 
-    state: proctoringState, 
+    state: proctoringState,
+    faceStatus,
     videoRef, 
     initializeMedia, 
     requestFullscreen,
@@ -350,13 +351,13 @@ export default function ExamPage() {
             </div>
 
             <div className="flex items-center gap-4">
-              {/* Camera indicator with preview */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Camera className={`w-4 h-4 ${proctoringState.cameraActive ? 'text-green-500' : 'text-red-500'}`} />
-                  <Mic className={`w-4 h-4 ${proctoringState.micActive ? 'text-green-500' : 'text-red-500'}`} />
-                </div>
-                <div className="w-20 h-14 bg-gray-900 rounded overflow-hidden border-2 border-gray-300">
+              {/* Camera Preview with Status */}
+              <div className="relative">
+                <div className={`w-28 h-20 bg-gray-900 rounded-lg overflow-hidden border-3 transition-colors ${
+                  faceStatus === 'detected' ? 'border-green-500' :
+                  faceStatus === 'multiple' ? 'border-orange-500' :
+                  'border-red-500 animate-pulse'
+                }`}>
                   <video
                     ref={videoRef}
                     autoPlay
@@ -364,6 +365,21 @@ export default function ExamPage() {
                     muted
                     className="w-full h-full object-cover scale-x-[-1]"
                   />
+                </div>
+                {/* Status Badge */}
+                <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  faceStatus === 'detected' ? 'bg-green-500 text-white' :
+                  faceStatus === 'multiple' ? 'bg-orange-500 text-white' :
+                  'bg-red-500 text-white'
+                }`}>
+                  {faceStatus === 'detected' ? '✓ Face OK' :
+                   faceStatus === 'multiple' ? '⚠ Multiple' :
+                   '✗ No Face'}
+                </div>
+                {/* Camera/Mic Icons */}
+                <div className="absolute top-1 right-1 flex gap-1">
+                  <Camera className={`w-3 h-3 ${proctoringState.cameraActive ? 'text-green-400' : 'text-red-400'}`} />
+                  <Mic className={`w-3 h-3 ${proctoringState.micActive ? 'text-green-400' : 'text-red-400'}`} />
                 </div>
               </div>
 

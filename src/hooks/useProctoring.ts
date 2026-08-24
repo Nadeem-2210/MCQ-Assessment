@@ -6,8 +6,36 @@ import { ViolationLog, ViolationType, ProctoringState } from "@/types";
 interface UseProctoringOptions {
   onViolation?: (violation: ViolationLog) => void;
   onAutoSubmit?: () => void;
+  onSeriousViolation?: (violation: ViolationLog) => void;
   maxViolations?: number;
 }
+
+// Violation severity classification
+export type ViolationSeverity = 'normal' | 'warning' | 'serious';
+
+export interface ViolationStatus {
+  severity: ViolationSeverity;
+  message: string;
+  type: ViolationType | null;
+  timestamp: number;
+}
+
+// Define which violations are serious vs warning
+const SERIOUS_VIOLATIONS: ViolationType[] = ['multiple_faces', 'phone_detected'];
+const WARNING_VIOLATIONS: ViolationType[] = ['no_face', 'audio_alert', 'fullscreen_exit'];
+const MINOR_VIOLATIONS: ViolationType[] = ['tab_switch', 'copy_attempt', 'paste_attempt', 'right_click'];
+
+// Thresholds for escalating to serious
+const VIOLATION_ESCALATION_CONFIG = {
+  // Number of same-type violations before escalating to serious popup
+  escalationThreshold: 3,
+  // Time window for counting repeated violations (ms)
+  escalationWindowMs: 60000, // 1 minute
+  // Cooldown before showing another serious popup (ms)
+  seriousPopupCooldownMs: 30000, // 30 seconds
+  // Cooldown for updating the status message below camera (ms)
+  statusMessageCooldownMs: 3000, // 3 seconds
+};
 
 // Mobile phone detection configuration - Improved for reliable detection
 const PHONE_DETECTION_CONFIG = {
@@ -77,6 +105,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   const {
     onViolation,
     onAutoSubmit,
+    onSeriousViolation,
     maxViolations = 10,
   } = options;
 
@@ -91,6 +120,14 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   });
 
   const [faceStatus, setFaceStatus] = useState<'detected' | 'not_detected' | 'multiple'>('detected');
+  
+  // New: Current violation status for UI display
+  const [currentViolationStatus, setCurrentViolationStatus] = useState<ViolationStatus>({
+    severity: 'normal',
+    message: '',
+    type: null,
+    timestamp: 0,
+  });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -111,6 +148,91 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   const audioCooldownRef = useRef<number>(0);
   const lastAudioLevelRef = useRef<number>(0);
   const audioHistoryRef = useRef<number[]>([]);
+  
+  // New: Violation tracking for escalation
+  const violationHistoryRef = useRef<{ type: ViolationType; timestamp: number }[]>([]);
+  const lastSeriousPopupTimeRef = useRef<number>(0);
+  const lastStatusUpdateTimeRef = useRef<number>(0);
+
+  // Determine violation severity
+  const getViolationSeverity = useCallback((type: ViolationType): ViolationSeverity => {
+    if (SERIOUS_VIOLATIONS.includes(type)) return 'serious';
+    if (WARNING_VIOLATIONS.includes(type)) return 'warning';
+    return 'normal';
+  }, []);
+
+  // Check if violation should escalate to serious popup
+  const shouldShowSeriousPopup = useCallback((type: ViolationType): boolean => {
+    const now = Date.now();
+    const config = VIOLATION_ESCALATION_CONFIG;
+    
+    // Always show for inherently serious violations (multiple faces, phone)
+    if (SERIOUS_VIOLATIONS.includes(type)) {
+      // But still respect cooldown
+      if (now - lastSeriousPopupTimeRef.current < config.seriousPopupCooldownMs) {
+        return false;
+      }
+      return true;
+    }
+    
+    // Check for escalation based on repeated violations
+    const recentViolations = violationHistoryRef.current.filter(
+      v => v.type === type && now - v.timestamp < config.escalationWindowMs
+    );
+    
+    if (recentViolations.length >= config.escalationThreshold) {
+      if (now - lastSeriousPopupTimeRef.current < config.seriousPopupCooldownMs) {
+        return false;
+      }
+      return true;
+    }
+    
+    return false;
+  }, []);
+
+  // Update the status message below camera
+  const updateViolationStatus = useCallback((type: ViolationType, message: string) => {
+    const now = Date.now();
+    const config = VIOLATION_ESCALATION_CONFIG;
+    
+    // Debounce status updates
+    if (now - lastStatusUpdateTimeRef.current < config.statusMessageCooldownMs) {
+      return;
+    }
+    
+    const severity = getViolationSeverity(type);
+    
+    setCurrentViolationStatus({
+      severity,
+      message,
+      type,
+      timestamp: now,
+    });
+    
+    lastStatusUpdateTimeRef.current = now;
+    
+    // Auto-clear status after some time for minor violations
+    if (severity === 'normal') {
+      setTimeout(() => {
+        setCurrentViolationStatus(prev => {
+          if (prev.timestamp === now) {
+            return { severity: 'normal', message: '', type: null, timestamp: 0 };
+          }
+          return prev;
+        });
+      }, 5000);
+    }
+  }, [getViolationSeverity]);
+
+  // Clear violation status when condition resolves
+  const clearViolationStatus = useCallback(() => {
+    setCurrentViolationStatus({
+      severity: 'normal',
+      message: '',
+      type: null,
+      timestamp: 0,
+    });
+  }, []);
 
   const addViolation = useCallback((type: ViolationType, details?: string) => {
     // Cooldown: prevent same violation type within 8 seconds
@@ -120,6 +242,13 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       return;
     }
     lastViolationTimeRef.current[type] = now;
+
+    // Track violation for escalation logic
+    violationHistoryRef.current.push({ type, timestamp: now });
+    // Clean old violations from history
+    violationHistoryRef.current = violationHistoryRef.current.filter(
+      v => now - v.timestamp < VIOLATION_ESCALATION_CONFIG.escalationWindowMs
+    );
 
     const violation: ViolationLog = {
       type,
@@ -142,8 +271,19 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       };
     });
 
+    // Update status message below camera (always for warnings)
+    const statusMessage = details || type.replace(/_/g, ' ');
+    updateViolationStatus(type, statusMessage);
+
+    // Check if serious popup should be shown
+    if (shouldShowSeriousPopup(type)) {
+      lastSeriousPopupTimeRef.current = now;
+      onSeriousViolation?.(violation);
+    }
+
+    // Always call onViolation for logging purposes
     onViolation?.(violation);
-  }, [maxViolations, onAutoSubmit, onViolation]);
+  }, [maxViolations, onAutoSubmit, onViolation, onSeriousViolation, shouldShowSeriousPopup, updateViolationStatus]);
 
   // Initialize camera and microphone
   const initializeMedia = useCallback(async () => {
@@ -293,6 +433,10 @@ export function useProctoring(options: UseProctoringOptions = {}) {
           setFaceStatus('not_detected');
           addViolation("no_face", "No face detected - please stay in frame");
           noFaceCountRef.current = 0;
+        } else {
+          // Update status without creating violation (just warning)
+          setFaceStatus('not_detected');
+          updateViolationStatus('no_face', 'Face not detected - please stay visible');
         }
         
         setState(prev => ({ ...prev, facesDetected: 0 }));
@@ -305,6 +449,9 @@ export function useProctoring(options: UseProctoringOptions = {}) {
           setFaceStatus('multiple');
           addViolation("multiple_faces", `Multiple people detected (${faceClusters.length} faces)`);
           multipleFaceCountRef.current = 0;
+        } else {
+          setFaceStatus('multiple');
+          updateViolationStatus('multiple_faces', 'Multiple faces detected');
         }
         
         setState(prev => ({ ...prev, facesDetected: faceClusters.length }));
@@ -313,13 +460,17 @@ export function useProctoring(options: UseProctoringOptions = {}) {
         noFaceCountRef.current = 0;
         multipleFaceCountRef.current = 0;
         setFaceStatus('detected');
+        // Clear warning status when face is properly detected
+        if (currentViolationStatus.type === 'no_face' || currentViolationStatus.type === 'multiple_faces') {
+          clearViolationStatus();
+        }
         setState(prev => ({ ...prev, facesDetected: 1 }));
       }
     };
 
     const interval = setInterval(detectFaceAndPhone, 1500);
     return () => clearInterval(interval);
-  }, [state.cameraActive, addViolation]);
+  }, [state.cameraActive, addViolation, updateViolationStatus, clearViolationStatus, currentViolationStatus.type]);
 
   // Audio monitoring - improved voice detection with better noise handling
   useEffect(() => {
@@ -357,7 +508,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       const speechBinCount = endBin - startBin;
       
       let speechBinsAboveThreshold = 0;
-      let speechBinValues: number[] = [];
+      const speechBinValues: number[] = [];
       for (let i = startBin; i < endBin && i < dataArray.length; i++) {
         speechSum += dataArray[i];
         speechBinValues.push(dataArray[i]);
@@ -540,10 +691,12 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   return {
     state,
     faceStatus,
+    currentViolationStatus,
     videoRef,
     initializeMedia,
     requestFullscreen,
     addViolation,
+    clearViolationStatus,
   };
 }
 

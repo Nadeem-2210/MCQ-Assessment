@@ -116,6 +116,17 @@ CREATE POLICY "Admins can view attempts"
         )
     );
 
+-- Admins can delete attempts for their assessments
+CREATE POLICY "Admins can delete attempts"
+    ON attempts FOR DELETE
+    USING (
+        EXISTS (
+            SELECT 1 FROM assessments 
+            WHERE assessments.id = attempts.assessment_id 
+            AND assessments.admin_id = auth.uid()
+        )
+    );
+
 -- Anyone can create and update their own attempts
 CREATE POLICY "Anyone can create attempts"
     ON attempts FOR INSERT
@@ -133,6 +144,18 @@ CREATE POLICY "Anyone can view their own attempts"
 -- Admins can view responses for their assessments
 CREATE POLICY "Admins can view responses"
     ON responses FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM attempts 
+            JOIN assessments ON assessments.id = attempts.assessment_id
+            WHERE attempts.id = responses.attempt_id 
+            AND assessments.admin_id = auth.uid()
+        )
+    );
+
+-- Admins can delete responses for their assessments
+CREATE POLICY "Admins can delete responses"
+    ON responses FOR DELETE
     USING (
         EXISTS (
             SELECT 1 FROM attempts 

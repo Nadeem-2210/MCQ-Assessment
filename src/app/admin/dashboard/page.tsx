@@ -347,7 +347,7 @@ export default function AdminDashboardPage() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editAssessment} onOpenChange={() => setEditAssessment(null)}>
-        <DialogContent>
+        <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle>Edit Assessment</DialogTitle>
             <DialogDescription>
@@ -362,6 +362,7 @@ export default function AdminDashboardPage() {
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 placeholder="Assessment name"
+                className="bg-white"
               />
             </div>
             <div className="space-y-2">
@@ -373,6 +374,7 @@ export default function AdminDashboardPage() {
                 max={180}
                 value={editDuration}
                 onChange={(e) => setEditDuration(parseInt(e.target.value) || 30)}
+                className="bg-white"
               />
             </div>
           </div>
@@ -396,11 +398,11 @@ export default function AdminDashboardPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteAssessment} onOpenChange={() => setDeleteAssessment(null)}>
-        <DialogContent>
+        <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle>Delete Assessment?</DialogTitle>
             <DialogDescription>
-              This will permanently delete <strong>"{deleteAssessment?.name}"</strong> along with all its questions, attempts, and responses. This action cannot be undone.
+              This will permanently delete <strong>&quot;{deleteAssessment?.name}&quot;</strong> along with all its questions, attempts, and responses. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

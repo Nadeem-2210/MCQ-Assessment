@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -22,13 +23,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/client";
-import { Assessment, Question, Attempt, Response } from "@/types";
+import { Assessment, Question, Attempt, Response, ParsedQuestion } from "@/types";
 import { formatDate, generateExamLink } from "@/lib/utils";
+import { parseExcelFile, validateExcelStructure } from "@/lib/excel-parser";
 import { 
   ArrowLeft, Copy, Clock, FileText, Users, CheckCircle, 
-  XCircle, AlertTriangle, ExternalLink, Trash2, Eye, Loader2
+  XCircle, AlertTriangle, ExternalLink, Trash2, Eye, Loader2,
+  Upload, RefreshCw, FileSpreadsheet
 } from "lucide-react";
 
 interface AttemptWithResponses extends Attempt {
@@ -39,6 +42,7 @@ export default function AssessmentDetailPage() {
   const router = useRouter();
   const params = useParams();
   const assessmentId = params.id as string;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -51,6 +55,15 @@ export default function AssessmentDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [viewAttempt, setViewAttempt] = useState<AttemptWithResponses | null>(null);
   const [loadingResponses, setLoadingResponses] = useState(false);
+  
+  // Question update states
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [parsedQuestions, setParsedQuestions] = useState<ParsedQuestion[]>([]);
+  const [parseError, setParseError] = useState("");
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [parsing, setParsing] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -170,6 +183,94 @@ export default function AssessmentDetailPage() {
       responses: responsesWithQuestions
     });
     setLoadingResponses(false);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadFile(file);
+    setParseError("");
+    setValidationErrors([]);
+    setParsedQuestions([]);
+    setParsing(true);
+
+    try {
+      const questions = await parseExcelFile(file);
+      const validation = validateExcelStructure(questions);
+      
+      if (!validation.valid) {
+        setValidationErrors(validation.errors);
+      }
+      
+      setParsedQuestions(questions);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Failed to parse Excel file");
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const handleUpdateQuestions = async () => {
+    if (parsedQuestions.length === 0 || validationErrors.length > 0) return;
+
+    setUploading(true);
+    const supabase = createClient();
+
+    try {
+      // Delete existing questions
+      await supabase
+        .from("questions")
+        .delete()
+        .eq("assessment_id", assessmentId);
+
+      // Insert new questions
+      const questionsToInsert = parsedQuestions.map((q, index) => ({
+        assessment_id: assessmentId,
+        question_text: q.question_text,
+        option_a: q.option_a,
+        option_b: q.option_b,
+        option_c: q.option_c,
+        option_d: q.option_d,
+        correct_answer: q.correct_answer,
+        order_index: index + 1,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("questions")
+        .insert(questionsToInsert);
+
+      if (insertError) throw insertError;
+
+      // Update assessment question count
+      await supabase
+        .from("assessments")
+        .update({ num_questions: parsedQuestions.length })
+        .eq("id", assessmentId);
+
+      // Reload data
+      await loadData();
+      
+      // Close dialog and reset
+      setShowUpdateDialog(false);
+      setUploadFile(null);
+      setParsedQuestions([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Failed to update questions");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openUpdateDialog = () => {
+    setShowUpdateDialog(true);
+    setUploadFile(null);
+    setParsedQuestions([]);
+    setParseError("");
+    setValidationErrors([]);
   };
 
   const getStatusBadge = (attempt: Attempt) => {
@@ -407,13 +508,19 @@ export default function AssessmentDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Questions Preview */}
+        {/* Questions Section */}
         <Card>
-          <CardHeader>
-            <CardTitle>Questions ({questions.length})</CardTitle>
-            <CardDescription>
-              Preview of assessment questions
-            </CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Questions ({questions.length})</CardTitle>
+              <CardDescription>
+                Assessment questions with correct answers
+              </CardDescription>
+            </div>
+            <Button onClick={openUpdateDialog} variant="outline">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Update Questions
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -454,9 +561,9 @@ export default function AssessmentDetailPage() {
         </Card>
       </main>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Attempt Dialog */}
       <Dialog open={!!deleteAttemptId} onOpenChange={() => setDeleteAttemptId(null)}>
-        <DialogContent>
+        <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle>Delete Attempt?</DialogTitle>
             <DialogDescription>
@@ -490,7 +597,7 @@ export default function AssessmentDetailPage() {
 
       {/* View Attempt Dialog */}
       <Dialog open={!!viewAttempt} onOpenChange={() => setViewAttempt(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white">
           <DialogHeader>
             <DialogTitle>
               Answer Sheet - {viewAttempt?.trainee_name}
@@ -594,6 +701,125 @@ export default function AssessmentDetailPage() {
 
           <DialogFooter>
             <Button onClick={() => setViewAttempt(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Questions Dialog */}
+      <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
+        <DialogContent className="max-w-2xl bg-white">
+          <DialogHeader>
+            <DialogTitle>Update Questions</DialogTitle>
+            <DialogDescription>
+              Upload a new Excel file to replace all existing questions. This will not affect past attempts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Warning */}
+            <Alert className="bg-amber-50 border-amber-200">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800">Important</AlertTitle>
+              <AlertDescription className="text-amber-700">
+                This will replace all {questions.length} existing questions. Past attempt scores will remain unchanged, but new attempts will use the updated questions.
+              </AlertDescription>
+            </Alert>
+
+            {/* File Input */}
+            <div className="space-y-2">
+              <Label>Upload New Excel File</Label>
+              <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="question-file"
+                />
+                <label htmlFor="question-file" className="cursor-pointer">
+                  {parsing ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                      <span className="text-sm text-gray-600">Parsing file...</span>
+                    </div>
+                  ) : uploadFile ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <FileSpreadsheet className="w-8 h-8 text-green-500" />
+                      <span className="text-sm font-medium text-gray-900">{uploadFile.name}</span>
+                      <span className="text-xs text-gray-500">Click to change file</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-8 h-8 text-gray-400" />
+                      <span className="text-sm text-gray-600">
+                        Click to upload or drag and drop
+                      </span>
+                      <span className="text-xs text-gray-500">.xlsx or .xls files</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+            </div>
+
+            {/* Parse Error */}
+            {parseError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{parseError}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <Alert variant="warning" className="bg-amber-50 border-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800">Validation Issues</AlertTitle>
+                <AlertDescription className="text-amber-700">
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    {validationErrors.slice(0, 5).map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                    {validationErrors.length > 5 && (
+                      <li>...and {validationErrors.length - 5} more errors</li>
+                    )}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Success */}
+            {parsedQuestions.length > 0 && validationErrors.length === 0 && (
+              <Alert className="bg-green-50 border-green-200">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-green-800">File parsed successfully</AlertTitle>
+                <AlertDescription className="text-green-700">
+                  Found {parsedQuestions.length} questions ready to upload
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUpdateDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdateQuestions}
+              disabled={uploading || parsedQuestions.length === 0 || validationErrors.length > 0}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Update {parsedQuestions.length} Questions
+                </>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -588,56 +588,111 @@ export default function ExamPage() {
         </div>
       </main>
 
-      {/* Submit Confirmation Dialog */}
+      {/* Submit Confirmation Dialog - Improved UI */}
       <Dialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Submit Exam?</DialogTitle>
-            <DialogDescription className="pt-2">
-              <div className="space-y-3">
-                <div className="flex justify-between py-2 border-b">
-                  <span>Questions Answered</span>
-                  <span className="font-semibold">{answeredCount} / {questions.length}</span>
-                </div>
-                {answeredCount < questions.length && (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-orange-800">
-                    <AlertTriangle className="w-4 h-4 inline mr-2" />
-                    You have {questions.length - answeredCount} unanswered questions.
-                  </div>
-                )}
-                {flaggedQuestions.size > 0 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800">
-                    <Flag className="w-4 h-4 inline mr-2" />
-                    You have {flaggedQuestions.size} flagged questions to review.
-                  </div>
-                )}
-                {proctoringState.violations.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800">
-                    <AlertTriangle className="w-4 h-4 inline mr-2" />
-                    {proctoringState.violations.length} violations recorded.
-                  </div>
-                )}
-              </div>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader className="text-center pb-4">
+            <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <Send className="w-8 h-8 text-blue-600" />
+            </div>
+            <DialogTitle className="text-2xl font-bold">Ready to Submit?</DialogTitle>
+            <DialogDescription className="text-base">
+              Please review your progress before submitting
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowSubmitDialog(false)}>
+          
+          <div className="space-y-4 py-4">
+            {/* Progress Summary Cards */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-green-700">{answeredCount}</div>
+                <div className="text-xs text-green-600">Answered</div>
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-gray-700">{questions.length - answeredCount}</div>
+                <div className="text-xs text-gray-600">Unanswered</div>
+              </div>
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-orange-700">{flaggedQuestions.size}</div>
+                <div className="text-xs text-orange-600">Flagged</div>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-green-500 to-green-600 h-full transition-all duration-300"
+                style={{ width: `${(answeredCount / questions.length) * 100}%` }}
+              />
+            </div>
+            <p className="text-center text-sm text-gray-500">
+              {Math.round((answeredCount / questions.length) * 100)}% Complete
+            </p>
+
+            {/* Warnings */}
+            {answeredCount < questions.length && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-800">Incomplete Assessment</p>
+                  <p className="text-sm text-amber-700">
+                    You have {questions.length - answeredCount} unanswered question(s). 
+                    Unanswered questions will be marked as incorrect.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {flaggedQuestions.size > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
+                <Flag className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-orange-800">Flagged Questions</p>
+                  <p className="text-sm text-orange-700">
+                    You flagged {flaggedQuestions.size} question(s) for review.
+                    Make sure you've reviewed them before submitting.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {proctoringState.violations.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-red-800">Violations Recorded</p>
+                  <p className="text-sm text-red-700">
+                    {proctoringState.violations.length} violation(s) were recorded during your exam.
+                    This will be reported to the administrator.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowSubmitDialog(false)}
+              className="flex-1 h-12"
+            >
+              <ChevronLeft className="w-4 h-4 mr-2" />
               Continue Exam
             </Button>
             <Button 
               onClick={() => submitExam(false)} 
               disabled={submitting}
-              className="bg-green-600 hover:bg-green-700"
+              className="flex-1 h-12 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold shadow-lg"
             >
               {submitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Submitting...
                 </>
               ) : (
                 <>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Confirm Submit
+                  <CheckCircle className="mr-2 h-5 w-5" />
+                  Submit Exam
                 </>
               )}
             </Button>

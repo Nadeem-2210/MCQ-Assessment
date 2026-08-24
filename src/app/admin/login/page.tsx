@@ -22,16 +22,33 @@ export default function AdminLoginPage() {
     setError("");
     setLoading(true);
 
+    // Basic validation
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      setError("Please enter both email and password.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+        email: trimmedEmail,
+        password: trimmedPassword,
       });
 
       if (authError) {
         console.error("Auth error:", authError);
-        setError(authError.message);
+        // Provide user-friendly error message
+        if (authError.message.includes("Invalid login credentials")) {
+          setError("Invalid email or password. Please try again.");
+        } else if (authError.message.includes("Email not confirmed")) {
+          setError("Please confirm your email address before logging in.");
+        } else {
+          setError(authError.message);
+        }
         setLoading(false);
         return;
       }

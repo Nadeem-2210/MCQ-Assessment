@@ -48,8 +48,30 @@ export default function ExamRegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name.trim() || !email.trim()) {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // Validation
+    if (!trimmedName || !trimmedEmail) {
       setError("Please fill in all fields");
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    // Name length validation
+    if (trimmedName.length < 2) {
+      setError("Name must be at least 2 characters long");
+      return;
+    }
+
+    if (trimmedName.length > 100) {
+      setError("Name must be less than 100 characters");
       return;
     }
 
@@ -64,7 +86,7 @@ export default function ExamRegisterPage() {
         .from("attempts")
         .select("id")
         .eq("assessment_id", assessmentId)
-        .eq("trainee_email", email.trim().toLowerCase())
+        .eq("trainee_email", trimmedEmail)
         .eq("status", "in_progress")
         .single();
 
@@ -80,7 +102,7 @@ export default function ExamRegisterPage() {
         .from("attempts")
         .select("id")
         .eq("assessment_id", assessmentId)
-        .eq("trainee_email", email.trim().toLowerCase())
+        .eq("trainee_email", trimmedEmail)
         .in("status", ["submitted", "auto_submitted"])
         .single();
 
@@ -95,8 +117,8 @@ export default function ExamRegisterPage() {
         .from("attempts")
         .insert({
           assessment_id: assessmentId,
-          trainee_name: name.trim(),
-          trainee_email: email.trim().toLowerCase(),
+          trainee_name: trimmedName,
+          trainee_email: trimmedEmail,
           total_questions: assessment?.num_questions || 0,
           violations: [],
           status: "in_progress",
@@ -111,6 +133,7 @@ export default function ExamRegisterPage() {
       
       router.push(`/exam/${assessmentId}/start`);
     } catch (err) {
+      console.error("Registration error:", err);
       setError(err instanceof Error ? err.message : "Failed to register. Please try again.");
     } finally {
       setSubmitting(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface UseTimerOptions {
   durationMinutes: number;
@@ -12,13 +12,30 @@ interface UseTimerOptions {
 export function useTimer(options: UseTimerOptions) {
   const { durationMinutes, startTime, onTimeUp, storageKey } = options;
   
+  // Ref to track if onTimeUp was already called to prevent duplicates
+  const timeUpCalledRef = useRef(false);
+  const onTimeUpRef = useRef(onTimeUp);
+  
+  // Keep the callback ref updated
+  useEffect(() => {
+    onTimeUpRef.current = onTimeUp;
+  }, [onTimeUp]);
+  
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
+    if (typeof window === 'undefined') {
+      return durationMinutes * 60;
+    }
+    
     if (storageKey) {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
         const remaining = parseInt(stored, 10);
         if (!isNaN(remaining) && remaining > 0) {
           return remaining;
+        }
+        // If stored value is 0 or negative, time is up
+        if (!isNaN(remaining) && remaining <= 0) {
+          return 0;
         }
       }
     }
@@ -35,11 +52,25 @@ export function useTimer(options: UseTimerOptions) {
   });
 
   const [isRunning, setIsRunning] = useState(true);
-  const [hasEnded, setHasEnded] = useState(false);
+  const [hasEnded, setHasEnded] = useState(() => {
+    // Check if timer already ended on mount
+    if (typeof window === 'undefined') return false;
+    
+    if (storageKey) {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const remaining = parseInt(stored, 10);
+        if (!isNaN(remaining) && remaining <= 0) {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
 
   // Save to localStorage periodically
   useEffect(() => {
-    if (storageKey && timeRemaining > 0) {
+    if (storageKey && typeof window !== 'undefined') {
       localStorage.setItem(storageKey, timeRemaining.toString());
     }
   }, [timeRemaining, storageKey]);
@@ -51,9 +82,18 @@ export function useTimer(options: UseTimerOptions) {
     const interval = setInterval(() => {
       setTimeRemaining(prev => {
         if (prev <= 1) {
+          // Timer has ended
           setHasEnded(true);
           setIsRunning(false);
-          onTimeUp?.();
+          
+          // Trigger callback only once
+          if (!timeUpCalledRef.current) {
+            timeUpCalledRef.current = true;
+            // Use setTimeout to ensure state updates complete first
+            setTimeout(() => {
+              onTimeUpRef.current?.();
+            }, 0);
+          }
           return 0;
         }
         return prev - 1;
@@ -61,14 +101,26 @@ export function useTimer(options: UseTimerOptions) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, hasEnded, onTimeUp]);
+  }, [isRunning, hasEnded]);
+
+  // Check if time already ended on mount (for page refresh scenarios)
+  useEffect(() => {
+    if (timeRemaining === 0 && !timeUpCalledRef.current && !hasEnded) {
+      timeUpCalledRef.current = true;
+      setHasEnded(true);
+      setIsRunning(false);
+      setTimeout(() => {
+        onTimeUpRef.current?.();
+      }, 0);
+    }
+  }, []);
 
   const pause = useCallback(() => {
     setIsRunning(false);
   }, []);
 
   const resume = useCallback(() => {
-    if (!hasEnded) {
+    if (!hasEnded && !timeUpCalledRef.current) {
       setIsRunning(true);
     }
   }, [hasEnded]);
@@ -81,6 +133,7 @@ export function useTimer(options: UseTimerOptions) {
 
   const isWarning = timeRemaining <= 300 && timeRemaining > 60; // 5 min warning
   const isCritical = timeRemaining <= 60; // 1 min critical
+  const isExpired = hasEnded || timeRemaining === 0;
 
   return {
     timeRemaining,
@@ -89,6 +142,7 @@ export function useTimer(options: UseTimerOptions) {
     hasEnded,
     isWarning,
     isCritical,
+    isExpired,
     pause,
     resume,
   };

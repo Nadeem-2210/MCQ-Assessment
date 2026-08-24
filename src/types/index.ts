@@ -57,7 +57,8 @@ export type ViolationType =
   | 'audio_alert'
   | 'copy_attempt'
   | 'paste_attempt'
-  | 'right_click';
+  | 'right_click'
+  | 'phone_detected';
 
 export interface ViolationLog {
   type: ViolationType;

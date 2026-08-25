@@ -539,11 +539,11 @@ export default function ExamPage() {
         </div>
       </header>
 
-      {/* Main content with sidebar camera */}
+      {/* Main content with sidebar */}
       <main className="container mx-auto px-4 py-6">
-        <div className={`grid gap-6 ${isProctoringEnabled ? 'lg:grid-cols-4' : 'lg:grid-cols-1 max-w-4xl mx-auto'}`}>
-          {/* Question Card - Spans 3 columns when proctoring enabled, full width otherwise */}
-          <div className={isProctoringEnabled ? "lg:col-span-3" : ""}>
+        <div className="grid gap-6 lg:grid-cols-4">
+          {/* Question Card - Spans 3 columns */}
+          <div className="lg:col-span-3">
             <Card className="shadow-lg">
               <CardContent className="p-6">
                 {/* Question Header */}
@@ -650,8 +650,8 @@ export default function ExamPage() {
             </Card>
           </div>
 
-          {/* Sidebar with Camera and Navigator - Only show camera when proctoring enabled */}
-          <div className={`space-y-4 ${isProctoringEnabled ? 'lg:col-span-1' : 'lg:col-span-1 max-w-sm mx-auto'}`}>
+          {/* Sidebar with Camera and Navigator */}
+          <div className="lg:col-span-1 space-y-4">
             {/* Camera Preview Card - Only show if proctoring is enabled */}
             {isProctoringEnabled && (
               <Card className={`shadow-lg overflow-hidden transition-all duration-300 border-4 ${getCameraFrameColor(currentViolationStatus, faceStatus)}`}>

@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useProctoring, ViolationStatus } from "@/hooks/useProctoring";
 import { useTimer } from "@/hooks/useTimer";
 import { Assessment, Question, ViolationLog } from "@/types";
+import { FEATURES } from "@/config/features";
 import { 
   Clock, ChevronLeft, ChevronRight, AlertTriangle, 
   Camera, Send, Loader2, CheckCircle, Flag, Mic, Timer, Lock,
@@ -91,6 +92,7 @@ export default function ExamPage() {
     videoRef, 
     initializeMedia, 
     requestFullscreen,
+    isProctoringEnabled,
   } = useProctoring({
     onViolation: handleViolation,
     onSeriousViolation: handleSeriousViolation,
@@ -433,8 +435,8 @@ export default function ExamPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Violations counter - subtle */}
-              {proctoringState.violations.length > 0 && (
+              {/* Violations counter - subtle - Only show if proctoring is enabled */}
+              {isProctoringEnabled && proctoringState.violations.length > 0 && (
                 <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${
                   proctoringState.violations.length >= 7 
                     ? 'bg-red-100 text-red-700' 
@@ -539,9 +541,9 @@ export default function ExamPage() {
 
       {/* Main content with sidebar camera */}
       <main className="container mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-4 gap-6">
-          {/* Question Card - Now spans 3 columns */}
-          <div className="lg:col-span-3">
+        <div className={`grid gap-6 ${isProctoringEnabled ? 'lg:grid-cols-4' : 'lg:grid-cols-1 max-w-4xl mx-auto'}`}>
+          {/* Question Card - Spans 3 columns when proctoring enabled, full width otherwise */}
+          <div className={isProctoringEnabled ? "lg:col-span-3" : ""}>
             <Card className="shadow-lg">
               <CardContent className="p-6">
                 {/* Question Header */}
@@ -648,64 +650,66 @@ export default function ExamPage() {
             </Card>
           </div>
 
-          {/* Sidebar with Camera and Navigator */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Camera Preview Card - Moved to sidebar */}
-            <Card className={`shadow-lg overflow-hidden transition-all duration-300 border-4 ${getCameraFrameColor(currentViolationStatus, faceStatus)}`}>
-              <div className="relative">
-                {/* Camera Feed */}
-                <div className="aspect-[4/3] bg-gray-900 relative">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover scale-x-[-1]"
-                  />
-                  
-                  {/* Camera/Mic Status Icons - Top right */}
-                  <div className="absolute top-2 right-2 flex gap-1.5">
-                    <div className={`p-1.5 rounded-full ${proctoringState.cameraActive ? 'bg-green-500' : 'bg-red-500'}`}>
-                      <Camera className="w-3 h-3 text-white" />
+          {/* Sidebar with Camera and Navigator - Only show camera when proctoring enabled */}
+          <div className={`space-y-4 ${isProctoringEnabled ? 'lg:col-span-1' : 'lg:col-span-1 max-w-sm mx-auto'}`}>
+            {/* Camera Preview Card - Only show if proctoring is enabled */}
+            {isProctoringEnabled && (
+              <Card className={`shadow-lg overflow-hidden transition-all duration-300 border-4 ${getCameraFrameColor(currentViolationStatus, faceStatus)}`}>
+                <div className="relative">
+                  {/* Camera Feed */}
+                  <div className="aspect-[4/3] bg-gray-900 relative">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover scale-x-[-1]"
+                    />
+                    
+                    {/* Camera/Mic Status Icons - Top right */}
+                    <div className="absolute top-2 right-2 flex gap-1.5">
+                      <div className={`p-1.5 rounded-full ${proctoringState.cameraActive ? 'bg-green-500' : 'bg-red-500'}`}>
+                        <Camera className="w-3 h-3 text-white" />
+                      </div>
+                      <div className={`p-1.5 rounded-full ${proctoringState.micActive ? 'bg-green-500' : 'bg-red-500'}`}>
+                        <Mic className="w-3 h-3 text-white" />
+                      </div>
                     </div>
-                    <div className={`p-1.5 rounded-full ${proctoringState.micActive ? 'bg-green-500' : 'bg-red-500'}`}>
-                      <Mic className="w-3 h-3 text-white" />
+                    
+                    {/* Face Status Badge - Top left */}
+                    <div className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                      faceStatus === 'detected' 
+                        ? 'bg-green-500/90 text-white' 
+                        : faceStatus === 'multiple' 
+                          ? 'bg-red-500/90 text-white' 
+                          : 'bg-orange-500/90 text-white'
+                    }`}>
+                      {faceStatus === 'detected' ? (
+                        <><Eye className="w-3 h-3" /> OK</>
+                      ) : faceStatus === 'multiple' ? (
+                        <><Users className="w-3 h-3" /> Multiple</>
+                      ) : (
+                        <><EyeOff className="w-3 h-3" /> No Face</>
+                      )}
                     </div>
                   </div>
                   
-                  {/* Face Status Badge - Top left */}
-                  <div className={`absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
-                    faceStatus === 'detected' 
-                      ? 'bg-green-500/90 text-white' 
-                      : faceStatus === 'multiple' 
-                        ? 'bg-red-500/90 text-white' 
-                        : 'bg-orange-500/90 text-white'
-                  }`}>
-                    {faceStatus === 'detected' ? (
-                      <><Eye className="w-3 h-3" /> OK</>
-                    ) : faceStatus === 'multiple' ? (
-                      <><Users className="w-3 h-3" /> Multiple</>
-                    ) : (
-                      <><EyeOff className="w-3 h-3" /> No Face</>
-                    )}
-                  </div>
+                  {/* Status Message Below Camera - For warnings */}
+                  {currentViolationStatus.message && (
+                    <div className={`px-3 py-2 flex items-center gap-2 text-sm font-medium ${
+                      currentViolationStatus.severity === 'serious' 
+                        ? 'bg-red-500 text-white' 
+                        : currentViolationStatus.severity === 'warning'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {getViolationIcon(currentViolationStatus.type)}
+                      <span className="truncate">{currentViolationStatus.message}</span>
+                    </div>
+                  )}
                 </div>
-                
-                {/* Status Message Below Camera - For warnings */}
-                {currentViolationStatus.message && (
-                  <div className={`px-3 py-2 flex items-center gap-2 text-sm font-medium ${
-                    currentViolationStatus.severity === 'serious' 
-                      ? 'bg-red-500 text-white' 
-                      : currentViolationStatus.severity === 'warning'
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-gray-100 text-gray-700'
-                  }`}>
-                    {getViolationIcon(currentViolationStatus.type)}
-                    <span className="truncate">{currentViolationStatus.message}</span>
-                  </div>
-                )}
-              </div>
-            </Card>
+              </Card>
+            )}
 
             {/* Question Navigator */}
             <Card className="shadow-lg sticky top-28">
@@ -760,12 +764,15 @@ export default function ExamPage() {
                 {/* Quick Stats */}
                 <div className="mt-4 pt-4 border-t">
                   <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">Violations</span>
-                      <span className={`font-medium ${proctoringState.violations.length > 5 ? 'text-red-600' : 'text-gray-900'}`}>
-                        {proctoringState.violations.length}/10
-                      </span>
-                    </div>
+                    {/* Only show violations if proctoring is enabled */}
+                    {isProctoringEnabled && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">Violations</span>
+                        <span className={`font-medium ${proctoringState.violations.length > 5 ? 'text-red-600' : 'text-gray-900'}`}>
+                          {proctoringState.violations.length}/10
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-xs">
                       <span className="text-gray-500">Progress</span>
                       <span className="font-medium text-gray-900">{Math.round(progress)}%</span>
@@ -778,14 +785,15 @@ export default function ExamPage() {
         </div>
       </main>
 
-      {/* Serious Violation Dialog - Only for serious violations */}
-      <Dialog open={showSeriousViolationDialog} onOpenChange={setShowSeriousViolationDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader className="text-center">
-            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-              <XCircle className="w-10 h-10 text-red-600" />
-            </div>
-            <DialogTitle className="text-xl font-bold text-red-700">Serious Violation Detected</DialogTitle>
+      {/* Serious Violation Dialog - Only for serious violations and only if proctoring enabled */}
+      {isProctoringEnabled && (
+        <Dialog open={showSeriousViolationDialog} onOpenChange={setShowSeriousViolationDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <XCircle className="w-10 h-10 text-red-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-red-700">Serious Violation Detected</DialogTitle>
             <DialogDescription className="text-base text-gray-600">
               {seriousViolation?.details || seriousViolation?.type?.replace(/_/g, ' ')}
             </DialogDescription>
@@ -818,6 +826,7 @@ export default function ExamPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
 
       {/* Submit Confirmation Dialog */}
       <Dialog open={showSubmitDialog && !isDisabled} onOpenChange={(open) => !isDisabled && setShowSubmitDialog(open)}>
@@ -910,7 +919,7 @@ export default function ExamPage() {
               </div>
             )}
 
-            {proctoringState.violations.length > 0 && (
+            {isProctoringEnabled && proctoringState.violations.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <div>

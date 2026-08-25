@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/client";
 import { Assessment } from "@/types";
+import { FEATURES } from "@/config/features";
 import { 
   Loader2, Camera, Mic, Monitor, CheckCircle, XCircle, 
   AlertTriangle, Play 
@@ -23,12 +24,15 @@ export default function ExamStartPage() {
   const assessmentId = params.id as string;
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Check if proctoring is enabled
+  const isProctoringEnabled = FEATURES.PROCTORING_ENABLED;
+
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState<PermissionStatus>({
-    camera: "pending",
-    microphone: "pending",
+    camera: isProctoringEnabled ? "pending" : "granted",
+    microphone: isProctoringEnabled ? "pending" : "granted",
   });
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState("");
@@ -69,6 +73,15 @@ export default function ExamStartPage() {
   };
 
   const requestPermissions = async () => {
+    // Skip permission requests if proctoring is disabled
+    if (!isProctoringEnabled) {
+      setPermissions({
+        camera: "granted",
+        microphone: "granted",
+      });
+      return;
+    }
+    
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -140,6 +153,9 @@ export default function ExamStartPage() {
     permissions.camera === "granted" && 
     permissions.microphone === "granted";
 
+  // If proctoring is disabled, all permissions are automatically granted
+  const canStartExam = isProctoringEnabled ? allPermissionsGranted : true;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
@@ -167,61 +183,70 @@ export default function ExamStartPage() {
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Exam Setup</CardTitle>
+            <CardTitle className="text-2xl">
+              {isProctoringEnabled ? "Exam Setup" : "Ready to Start"}
+            </CardTitle>
             <CardDescription>
-              Please allow camera and microphone access to continue
+              {isProctoringEnabled 
+                ? "Please allow camera and microphone access to continue"
+                : "Review the exam details and click Start when ready"
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Camera Preview */}
-            <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
-              {stream ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center text-gray-400">
-                    <Camera className="w-12 h-12 mx-auto mb-2" />
-                    <p>Camera preview will appear here</p>
+            {/* Camera Preview - Only show if proctoring is enabled */}
+            {isProctoringEnabled && (
+              <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
+                {stream ? (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center text-gray-400">
+                      <Camera className="w-12 h-12 mx-auto mb-2" />
+                      <p>Camera preview will appear here</p>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* Permission Status */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Camera className="w-5 h-5 text-gray-600" />
-                  <span>Camera Access</span>
-                </div>
-                {getPermissionIcon(permissions.camera)}
+                )}
               </div>
+            )}
 
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Mic className="w-5 h-5 text-gray-600" />
-                  <span>Microphone Access</span>
+            {/* Permission Status - Only show if proctoring is enabled */}
+            {isProctoringEnabled && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Camera className="w-5 h-5 text-gray-600" />
+                    <span>Camera Access</span>
+                  </div>
+                  {getPermissionIcon(permissions.camera)}
                 </div>
-                {getPermissionIcon(permissions.microphone)}
-              </div>
 
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Monitor className="w-5 h-5 text-gray-600" />
-                  <span>Fullscreen Mode</span>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Mic className="w-5 h-5 text-gray-600" />
+                    <span>Microphone Access</span>
+                  </div>
+                  {getPermissionIcon(permissions.microphone)}
                 </div>
-                <span className="text-sm text-gray-500">Required during exam</span>
-              </div>
-            </div>
 
-            {/* Warnings */}
-            {(permissions.camera === "denied" || permissions.microphone === "denied") && (
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Monitor className="w-5 h-5 text-gray-600" />
+                    <span>Fullscreen Mode</span>
+                  </div>
+                  <span className="text-sm text-gray-500">Required during exam</span>
+                </div>
+              </div>
+            )}
+
+            {/* Warnings - Only show if proctoring is enabled */}
+            {isProctoringEnabled && (permissions.camera === "denied" || permissions.microphone === "denied") && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
@@ -237,18 +262,23 @@ export default function ExamStartPage() {
               <AlertDescription className="text-blue-800 text-sm">
                 <strong>Important Instructions:</strong>
                 <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>The exam will run in fullscreen mode</li>
-                  <li>Do not switch tabs or windows during the exam</li>
-                  <li>Keep your face visible to the camera</li>
-                  <li>Multiple people detected will be flagged</li>
+                  {isProctoringEnabled && (
+                    <>
+                      <li>The exam will run in fullscreen mode</li>
+                      <li>Do not switch tabs or windows during the exam</li>
+                      <li>Keep your face visible to the camera</li>
+                      <li>Multiple people detected will be flagged</li>
+                    </>
+                  )}
                   <li>The exam will auto-submit when time runs out</li>
+                  <li>Make sure you have a stable internet connection</li>
                 </ul>
               </AlertDescription>
             </Alert>
 
             {/* Actions */}
             <div className="flex gap-4">
-              {!allPermissionsGranted ? (
+              {!canStartExam ? (
                 <Button 
                   onClick={requestPermissions} 
                   className="flex-1"

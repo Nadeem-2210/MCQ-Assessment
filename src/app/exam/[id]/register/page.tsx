@@ -9,12 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/client";
 import { Assessment } from "@/types";
+import { FEATURES } from "@/config/features";
 import { Loader2, Clock, FileText, AlertCircle, Shield } from "lucide-react";
 
 export default function ExamRegisterPage() {
   const router = useRouter();
   const params = useParams();
   const assessmentId = params.id as string;
+
+  // Check if proctoring is enabled
+  const isProctoringEnabled = FEATURES.PROCTORING_ENABLED;
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [name, setName] = useState("");
@@ -191,14 +195,16 @@ export default function ExamRegisterPage() {
             </div>
           </div>
 
-          {/* Proctoring Warning */}
-          <Alert className="mb-6 bg-orange-50 border-orange-200">
-            <Shield className="h-4 w-4 text-orange-600" />
-            <AlertDescription className="text-orange-800 text-sm">
-              <strong>Proctored Exam:</strong> This assessment uses camera and microphone 
-              monitoring. Tab switching and screen changes will be recorded.
-            </AlertDescription>
-          </Alert>
+          {/* Proctoring Warning - Only show if proctoring is enabled */}
+          {isProctoringEnabled && (
+            <Alert className="mb-6 bg-orange-50 border-orange-200">
+              <Shield className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="text-orange-800 text-sm">
+                <strong>Proctored Exam:</strong> This assessment uses camera and microphone 
+                monitoring. Tab switching and screen changes will be recorded.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -245,8 +251,10 @@ export default function ExamRegisterPage() {
           </form>
 
           <p className="text-xs text-gray-500 text-center mt-4">
-            By continuing, you agree to the proctoring requirements and 
-            confirm that you will complete this assessment honestly.
+            {isProctoringEnabled 
+              ? "By continuing, you agree to the proctoring requirements and confirm that you will complete this assessment honestly."
+              : "By continuing, you confirm that you will complete this assessment honestly."
+            }
           </p>
         </CardContent>
       </Card>

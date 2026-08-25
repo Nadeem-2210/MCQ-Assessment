@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { ViolationLog, ViolationType, ProctoringState } from "@/types";
+import { FEATURES } from "@/config/features";
 
 interface UseProctoringOptions {
   onViolation?: (violation: ViolationLog) => void;
@@ -102,6 +103,9 @@ const VOICE_DETECTION_CONFIG = {
 };
 
 export function useProctoring(options: UseProctoringOptions = {}) {
+  // Check if proctoring is disabled via feature flag
+  const isProctoringEnabled = FEATURES.PROCTORING_ENABLED;
+
   const {
     onViolation,
     onAutoSubmit,
@@ -156,13 +160,17 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   // Determine violation severity
   const getViolationSeverity = useCallback((type: ViolationType): ViolationSeverity => {
+    if (!isProctoringEnabled) return 'normal';
     if (SERIOUS_VIOLATIONS.includes(type)) return 'serious';
     if (WARNING_VIOLATIONS.includes(type)) return 'warning';
     return 'normal';
-  }, []);
+  }, [isProctoringEnabled]);
 
   // Check if violation should escalate to serious popup
   const shouldShowSeriousPopup = useCallback((type: ViolationType): boolean => {
+    // Never show serious popup if proctoring is disabled
+    if (!isProctoringEnabled) return false;
+    
     const now = Date.now();
     const config = VIOLATION_ESCALATION_CONFIG;
     
@@ -192,6 +200,9 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   // Update the status message below camera
   const updateViolationStatus = useCallback((type: ViolationType, message: string) => {
+    // Don't update violation status if proctoring is disabled
+    if (!isProctoringEnabled) return;
+    
     const now = Date.now();
     const config = VIOLATION_ESCALATION_CONFIG;
     
@@ -235,6 +246,9 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   }, []);
 
   const addViolation = useCallback((type: ViolationType, details?: string) => {
+    // Don't add violations if proctoring is disabled
+    if (!isProctoringEnabled) return;
+    
     // Cooldown: prevent same violation type within 8 seconds
     const now = Date.now();
     const lastTime = lastViolationTimeRef.current[type] || 0;
@@ -287,6 +301,12 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   // Initialize camera and microphone
   const initializeMedia = useCallback(async () => {
+    // Don't initialize media if proctoring is disabled
+    if (!isProctoringEnabled) {
+      console.log("Proctoring disabled - skipping camera/microphone initialization");
+      return true;
+    }
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
@@ -341,6 +361,8 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   // Camera monitoring - face detection and mobile phone detection
   useEffect(() => {
+    // Skip camera monitoring if proctoring is disabled
+    if (!isProctoringEnabled) return;
     if (!videoRef.current || !canvasRef.current || !state.cameraActive) return;
 
     const detectFaceAndPhone = () => {
@@ -474,6 +496,8 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   // Audio monitoring - improved voice detection with better noise handling
   useEffect(() => {
+    // Skip audio monitoring if proctoring is disabled
+    if (!isProctoringEnabled) return;
     if (!analyserRef.current || !state.micActive) return;
 
     const analyser = analyserRef.current;
@@ -600,16 +624,25 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   // Request fullscreen
   const requestFullscreen = useCallback(async () => {
+    // Skip fullscreen requirement if both proctoring and fullscreen are disabled
+    if (!isProctoringEnabled && !FEATURES.FULLSCREEN_REQUIRED) {
+      console.log("Proctoring and fullscreen disabled - skipping fullscreen request");
+      return;
+    }
+    
     try {
       await document.documentElement.requestFullscreen();
       setState(prev => ({ ...prev, isFullscreen: true }));
     } catch (error) {
       console.error("Failed to enter fullscreen:", error);
     }
-  }, []);
+  }, [isProctoringEnabled]);
 
   // Fullscreen change handler
   useEffect(() => {
+    // Skip fullscreen monitoring if proctoring is disabled
+    if (!isProctoringEnabled) return;
+    
     const handleFullscreenChange = () => {
       const isFullscreen = !!document.fullscreenElement;
       
@@ -623,10 +656,13 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, [addViolation]);
+  }, [addViolation, isProctoringEnabled]);
 
   // Tab switch detection
   useEffect(() => {
+    // Skip tab switch detection if proctoring is disabled
+    if (!isProctoringEnabled) return;
+    
     const handleVisibilityChange = () => {
       if (document.hidden) {
         addViolation("tab_switch", "Switched tabs or minimized window");
@@ -635,10 +671,13 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [addViolation]);
+  }, [addViolation, isProctoringEnabled]);
 
   // Window blur handler
   useEffect(() => {
+    // Skip window blur detection if proctoring is disabled
+    if (!isProctoringEnabled) return;
+    
     const handleBlur = () => {
       if (state.isFullscreen) {
         addViolation("tab_switch", "Switched to another application");
@@ -647,10 +686,13 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
     window.addEventListener("blur", handleBlur);
     return () => window.removeEventListener("blur", handleBlur);
-  }, [addViolation, state.isFullscreen]);
+  }, [addViolation, state.isFullscreen, isProctoringEnabled]);
 
   // Prevent copy/paste
   useEffect(() => {
+    // Skip copy/paste prevention if proctoring is disabled
+    if (!isProctoringEnabled) return;
+    
     const handleCopy = (e: ClipboardEvent) => {
       e.preventDefault();
       addViolation("copy_attempt", "Attempted to copy content");
@@ -674,7 +716,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("contextmenu", handleContextMenu);
     };
-  }, [addViolation]);
+  }, [addViolation, isProctoringEnabled]);
 
   // Cleanup
   useEffect(() => {
@@ -697,6 +739,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     requestFullscreen,
     addViolation,
     clearViolationStatus,
+    isProctoringEnabled,
   };
 }
 

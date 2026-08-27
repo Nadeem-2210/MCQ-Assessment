@@ -98,7 +98,7 @@ export function AdminLoginDialog({ children }: AdminLoginDialogProps) {
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-white">
         <DialogHeader className="text-center pb-4">
           <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
             <Lock className="w-8 h-8 text-blue-600" />

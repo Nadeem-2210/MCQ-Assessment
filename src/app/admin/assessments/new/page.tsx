@@ -335,7 +335,7 @@ export default function NewAssessmentPage() {
             </Link>
             <Button 
               type="submit" 
-              className="flex-1"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
               disabled={submitting || parsedQuestions.length === 0 || validationErrors.length > 0}
             >
               {submitting ? (

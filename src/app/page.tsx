@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AdminLoginDialog } from "@/components/admin-login-dialog";
 import { Shield, Clock, FileSpreadsheet, Users } from "lucide-react";
 
 export default function Home() {
@@ -24,9 +27,9 @@ export default function Home() {
             <Link href="#how-it-works" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
               How It Works
             </Link>
-            <Link href="/admin/login">
+            <AdminLoginDialog>
               <Button>Admin Login</Button>
-            </Link>
+            </AdminLoginDialog>
           </nav>
         </div>
       </header>
@@ -45,11 +48,11 @@ export default function Home() {
               anti-cheating measures. Perfect for training programs and certifications.
             </p>
             <div className="flex gap-4">
-              <Link href="/admin/login">
+              <AdminLoginDialog>
                 <Button size="lg" className="text-lg px-8">
                   Get Started
                 </Button>
-              </Link>
+              </AdminLoginDialog>
               <Link href="#features">
                 <Button size="lg" variant="outline" className="text-lg px-8">
                   Learn More
@@ -127,9 +130,11 @@ export default function Home() {
         <div className="container mx-auto px-4 flex items-center justify-between text-sm text-gray-500">
           <p>&copy; {new Date().getFullYear()} Kadel Labs. All rights reserved.</p>
           <div className="flex gap-6">
-            <Link href="/admin/login" className="hover:text-blue-600 transition-colors">
-              Admin Portal
-            </Link>
+            <AdminLoginDialog>
+              <button className="hover:text-blue-600 transition-colors">
+                Admin Portal
+              </button>
+            </AdminLoginDialog>
           </div>
         </div>
       </footer>

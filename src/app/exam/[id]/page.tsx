@@ -21,6 +21,12 @@ import { useTimer } from "@/hooks/useTimer";
 import { Assessment, Question, ViolationLog } from "@/types";
 import { FEATURES } from "@/config/features";
 import { 
+  shuffleQuestionOptions, 
+  ShuffledQuestion, 
+  mapDisplayAnswerToOriginal,
+  OptionKey 
+} from "@/lib/option-randomizer";
+import { 
   Clock, ChevronLeft, ChevronRight, AlertTriangle, 
   Camera, Send, Loader2, CheckCircle, Flag, Mic, Timer, Lock,
   Eye, EyeOff, Users, Smartphone, Volume2, XCircle
@@ -33,6 +39,7 @@ export default function ExamPage() {
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [shuffledQuestions, setShuffledQuestions] = useState<Map<string, ShuffledQuestion>>(new Map());
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, 'A' | 'B' | 'C' | 'D' | null>>({});
@@ -191,6 +198,7 @@ export default function ExamPage() {
 
   const loadExamData = async () => {
     const supabase = createClient();
+    const storedAttemptId = localStorage.getItem(`attempt_${assessmentId}`);
 
     const { data: assessmentData } = await supabase
       .from("assessments")
@@ -215,6 +223,26 @@ export default function ExamPage() {
     // Randomize question order for the exam
     const shuffled = [...(questionsData || [])].sort(() => Math.random() - 0.5);
     setQuestions(shuffled as Question[]);
+    
+    // If randomize_options is enabled, shuffle options for each question
+    if (assessmentData.randomize_options && storedAttemptId) {
+      const shuffledMap = new Map<string, ShuffledQuestion>();
+      shuffled.forEach((q) => {
+        const shuffledQ = shuffleQuestionOptions(
+          q.id,
+          storedAttemptId,
+          {
+            a: q.option_a,
+            b: q.option_b,
+            c: q.option_c,
+            d: q.option_d,
+          }
+        );
+        shuffledMap.set(q.id, shuffledQ);
+      });
+      setShuffledQuestions(shuffledMap);
+    }
+    
     questionsLoadedRef.current = true;
     setLoading(false);
   };
@@ -227,7 +255,13 @@ export default function ExamPage() {
     
     const questionId = questions[currentIndex]?.id;
     if (questionId) {
-      setAnswers(prev => ({ ...prev, [questionId]: answer }));
+      // If options are randomized, map the display answer back to the original
+      const shuffledQ = shuffledQuestions.get(questionId);
+      const originalAnswer = shuffledQ 
+        ? mapDisplayAnswerToOriginal(answer, shuffledQ)
+        : answer;
+      
+      setAnswers(prev => ({ ...prev, [questionId]: originalAnswer }));
     }
   };
 
@@ -570,43 +604,58 @@ export default function ExamPage() {
 
                 {/* Options */}
                 <div className="space-y-3">
-                  {(['A', 'B', 'C', 'D'] as const).map((option) => {
-                    const optionKey = `option_${option.toLowerCase()}` as keyof Question;
-                    const optionText = currentQuestion?.[optionKey];
-                    const isSelected = currentAnswer === option;
+                  {(() => {
+                    // Get shuffled options if available, otherwise use original
+                    const shuffledQ = currentQuestion ? shuffledQuestions.get(currentQuestion.id) : null;
+                    const displayOptions = shuffledQ 
+                      ? shuffledQ.options.map(opt => ({
+                          key: opt.key,
+                          text: opt.text,
+                          originalKey: opt.originalKey,
+                        }))
+                      : (['A', 'B', 'C', 'D'] as const).map(key => ({
+                          key,
+                          text: currentQuestion?.[`option_${key.toLowerCase()}` as keyof Question] as string,
+                          originalKey: key,
+                        }));
+                    
+                    return displayOptions.map((option) => {
+                      // Check if this option (by original key) is selected
+                      const isSelected = currentAnswer === option.originalKey;
 
-                    return (
-                      <button
-                        key={option}
-                        onClick={() => selectAnswer(option)}
-                        disabled={isDisabled}
-                        className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200
-                          ${isDisabled 
-                            ? 'opacity-60 cursor-not-allowed' 
-                            : ''
-                          }
-                          ${isSelected 
-                            ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-md' 
-                            : isDisabled
-                              ? 'border-gray-200 bg-gray-50'
-                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                      return (
+                        <button
+                          key={option.key}
+                          onClick={() => selectAnswer(option.key as 'A' | 'B' | 'C' | 'D')}
+                          disabled={isDisabled}
+                          className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200
+                            ${isDisabled 
+                              ? 'opacity-60 cursor-not-allowed' 
+                              : ''
+                            }
                             ${isSelected 
-                              ? 'bg-blue-500 text-white scale-110' 
-                              : 'bg-gray-200 text-gray-600'
+                              ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-md' 
+                              : isDisabled
+                                ? 'border-gray-200 bg-gray-50'
+                                : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                             }`}
-                          >
-                            {option}
-                          </span>
-                          <span className="flex-1 text-base">{optionText}</span>
-                          {isSelected && <CheckCircle className="w-6 h-6 text-blue-500" />}
-                        </div>
-                      </button>
-                    );
-                  })}
+                        >
+                          <div className="flex items-center gap-4">
+                            <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                              ${isSelected 
+                                ? 'bg-blue-500 text-white scale-110' 
+                                : 'bg-gray-200 text-gray-600'
+                              }`}
+                            >
+                              {option.key}
+                            </span>
+                            <span className="flex-1 text-base">{option.text}</span>
+                            {isSelected && <CheckCircle className="w-6 h-6 text-blue-500" />}
+                          </div>
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
 
                 {/* Expired Notice */}

@@ -31,7 +31,7 @@ import { parseExcelFile, validateExcelStructure } from "@/lib/excel-parser";
 import { 
   ArrowLeft, Copy, Clock, FileText, Users, CheckCircle, 
   XCircle, AlertTriangle, ExternalLink, Trash2, Eye, Loader2,
-  Upload, RefreshCw, FileSpreadsheet
+  Upload, RefreshCw, FileSpreadsheet, Calendar, Shuffle
 } from "lucide-react";
 
 interface AttemptWithResponses extends Attempt {
@@ -406,6 +406,64 @@ export default function AssessmentDetailPage() {
             <CardContent>
               <div className="text-3xl font-bold text-green-600">
                 {avgScore}/{questions.length}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Settings Info */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          {/* Scheduling */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Scheduling
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {assessment.starts_at || assessment.ends_at ? (
+                <div className="space-y-2 text-sm">
+                  {assessment.starts_at && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">Starts:</span>
+                      <span className="font-medium">{new Date(assessment.starts_at).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {assessment.ends_at && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">Ends:</span>
+                      <span className="font-medium">{new Date(assessment.ends_at).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <span className="text-gray-500 text-sm">Always available (no schedule set)</span>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Anti-Cheating */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                <Shuffle className="w-4 h-4" />
+                Anti-Cheating
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                {assessment.randomize_options ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-sm text-green-700 font-medium">Option randomization enabled</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-500">Option randomization disabled</span>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>

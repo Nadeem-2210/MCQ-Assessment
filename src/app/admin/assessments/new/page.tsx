@@ -11,12 +11,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/client";
 import { parseExcelFile, validateExcelStructure } from "@/lib/excel-parser";
 import { ParsedQuestion } from "@/types";
-import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, Upload, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, Calendar, Shuffle } from "lucide-react";
 
 export default function NewAssessmentPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(30);
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [randomizeOptions, setRandomizeOptions] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [parsedQuestions, setParsedQuestions] = useState<ParsedQuestion[]>([]);
   const [parseError, setParseError] = useState("");
@@ -76,6 +79,16 @@ export default function NewAssessmentPage() {
       setError("Duration must be between 1 and 180 minutes");
       return;
     }
+
+    // Validate scheduling dates
+    if (startsAt && endsAt) {
+      const startDate = new Date(startsAt);
+      const endDate = new Date(endsAt);
+      if (endDate <= startDate) {
+        setError("End date must be after start date");
+        return;
+      }
+    }
     
     if (parsedQuestions.length === 0) {
       setError("Please upload an Excel file with questions");
@@ -114,6 +127,9 @@ export default function NewAssessmentPage() {
           duration_minutes: durationMinutes,
           num_questions: parsedQuestions.length,
           is_active: true,
+          starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+          ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+          randomize_options: randomizeOptions,
         })
         .select()
         .single();
@@ -208,6 +224,86 @@ export default function NewAssessmentPage() {
                 <p className="text-sm text-gray-500">
                   Time limit for completing the assessment
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Scheduling */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Scheduling (Optional)
+              </CardTitle>
+              <CardDescription>
+                Set when this assessment is available for trainees
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="startsAt">Start Date & Time</Label>
+                  <Input
+                    id="startsAt"
+                    type="datetime-local"
+                    value={startsAt}
+                    onChange={(e) => setStartsAt(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Leave empty for immediate availability
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endsAt">End Date & Time</Label>
+                  <Input
+                    id="endsAt"
+                    type="datetime-local"
+                    value={endsAt}
+                    onChange={(e) => setEndsAt(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Leave empty for no end date
+                  </p>
+                </div>
+              </div>
+              {startsAt && endsAt && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                  Assessment will be available from{" "}
+                  <strong>{new Date(startsAt).toLocaleString()}</strong> to{" "}
+                  <strong>{new Date(endsAt).toLocaleString()}</strong>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Anti-Cheating Options */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shuffle className="w-5 h-5" />
+                Anti-Cheating Options
+              </CardTitle>
+              <CardDescription>
+                Additional measures to ensure exam integrity
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="randomizeOptions"
+                  checked={randomizeOptions}
+                  onChange={(e) => setRandomizeOptions(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div>
+                  <Label htmlFor="randomizeOptions" className="font-medium cursor-pointer">
+                    Randomize answer options
+                  </Label>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Shuffle the order of A, B, C, D options for each trainee. This makes it harder for trainees to share answers.
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

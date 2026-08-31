@@ -13,6 +13,11 @@ export interface Assessment {
   num_questions: number;
   is_active: boolean;
   created_at: string;
+  // Scheduling fields
+  starts_at: string | null;
+  ends_at: string | null;
+  // Option randomization
+  randomize_options: boolean;
 }
 
 export interface Question {

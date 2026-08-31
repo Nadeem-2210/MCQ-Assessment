@@ -10,7 +10,34 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/client";
 import { Assessment } from "@/types";
 import { FEATURES } from "@/config/features";
-import { Loader2, Clock, FileText, AlertCircle, Shield } from "lucide-react";
+import { Loader2, Clock, FileText, AlertCircle, Shield, Calendar } from "lucide-react";
+
+// Helper function to check if assessment is within scheduled window
+function checkScheduleStatus(assessment: Assessment): { available: boolean; message: string } {
+  const now = new Date();
+  
+  if (assessment.starts_at) {
+    const startDate = new Date(assessment.starts_at);
+    if (now < startDate) {
+      return {
+        available: false,
+        message: `This assessment will be available from ${startDate.toLocaleString()}`
+      };
+    }
+  }
+  
+  if (assessment.ends_at) {
+    const endDate = new Date(assessment.ends_at);
+    if (now > endDate) {
+      return {
+        available: false,
+        message: `This assessment ended on ${endDate.toLocaleString()}`
+      };
+    }
+  }
+  
+  return { available: true, message: "" };
+}
 
 export default function ExamRegisterPage() {
   const router = useRouter();
@@ -21,6 +48,7 @@ export default function ExamRegisterPage() {
   const isProctoringEnabled = FEATURES.PROCTORING_ENABLED;
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [scheduleStatus, setScheduleStatus] = useState<{ available: boolean; message: string }>({ available: true, message: "" });
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
@@ -45,6 +73,9 @@ export default function ExamRegisterPage() {
       setError("Assessment not found or is no longer active.");
     } else {
       setAssessment(data);
+      // Check scheduling
+      const status = checkScheduleStatus(data);
+      setScheduleStatus(status);
     }
     setLoading(false);
   };
@@ -193,7 +224,30 @@ export default function ExamRegisterPage() {
               <Clock className="w-4 h-4 text-gray-500" />
               <span>{assessment.duration_minutes} Minutes</span>
             </div>
+            {(assessment.starts_at || assessment.ends_at) && (
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <span>
+                  {assessment.starts_at && assessment.ends_at 
+                    ? `${new Date(assessment.starts_at).toLocaleDateString()} - ${new Date(assessment.ends_at).toLocaleDateString()}`
+                    : assessment.starts_at 
+                      ? `Starts ${new Date(assessment.starts_at).toLocaleDateString()}`
+                      : `Ends ${new Date(assessment.ends_at!).toLocaleDateString()}`
+                  }
+                </span>
+              </div>
+            )}
           </div>
+
+          {/* Schedule Not Available Warning */}
+          {!scheduleStatus.available && (
+            <Alert className="mb-6 bg-amber-50 border-amber-200">
+              <Calendar className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 text-sm">
+                {scheduleStatus.message}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Proctoring Warning - Only show if proctoring is enabled */}
           {isProctoringEnabled && (
@@ -238,12 +292,14 @@ export default function ExamRegisterPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="w-full" disabled={submitting || !scheduleStatus.available}>
               {submitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Registering...
                 </>
+              ) : !scheduleStatus.available ? (
+                "Assessment Not Available"
               ) : (
                 "Continue to Exam Setup"
               )}

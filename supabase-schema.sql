@@ -13,7 +13,12 @@ CREATE TABLE assessments (
     duration_minutes INTEGER NOT NULL DEFAULT 30,
     num_questions INTEGER NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- Scheduling: when the assessment is available
+    starts_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    ends_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    -- Option randomization: shuffle A/B/C/D order per trainee
+    randomize_options BOOLEAN NOT NULL DEFAULT false
 );
 
 -- Questions table

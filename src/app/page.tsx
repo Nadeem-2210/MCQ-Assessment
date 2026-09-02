@@ -88,7 +88,7 @@ export default function Home() {
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">Anti-Cheating</h3>
               <p className="text-sm text-gray-500">
-                Face detection, tab monitoring & fullscreen enforcement
+                Tab monitoring & fullscreen enforcement
               </p>
             </div>
 

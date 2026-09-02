@@ -573,8 +573,8 @@ export default function ExamPage() {
                 1-4 / A-D to select
               </div>
               
-              {/* Violations counter - subtle - Only show if proctoring is enabled */}
-              {isProctoringEnabled && proctoringState.violations.length > 0 && (
+              {/* Violations counter - shows when any security feature is enabled */}
+              {proctoringState.violations.length > 0 && (
                 <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${
                   proctoringState.violations.length >= 7 
                     ? 'bg-red-100 text-red-700' 
@@ -917,8 +917,8 @@ export default function ExamPage() {
                 {/* Quick Stats */}
                 <div className="mt-4 pt-4 border-t">
                   <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                    {/* Only show violations if proctoring is enabled */}
-                    {isProctoringEnabled && (
+                    {/* Always show violations if any security feature is enabled */}
+                    {proctoringState.violations.length > 0 && (
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-500">Violations</span>
                         <span className={`font-medium ${proctoringState.violations.length > 5 ? 'text-red-600' : 'text-gray-900'}`}>
@@ -1072,7 +1072,7 @@ export default function ExamPage() {
               </div>
             )}
 
-            {isProctoringEnabled && proctoringState.violations.length > 0 && (
+            {proctoringState.violations.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <div>

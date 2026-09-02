@@ -246,8 +246,19 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   }, []);
 
   const addViolation = useCallback((type: ViolationType, details?: string) => {
-    // Don't add violations if proctoring is disabled
-    if (!isProctoringEnabled) return;
+    // Define which violations are camera-related vs general security features
+    const cameraRelatedViolations: ViolationType[] = ['no_face', 'multiple_faces', 'phone_detected', 'audio_alert'];
+    const generalSecurityViolations: ViolationType[] = ['fullscreen_exit', 'tab_switch', 'copy_attempt', 'paste_attempt', 'right_click'];
+    
+    // Skip camera-related violations if proctoring is disabled
+    if (!isProctoringEnabled && cameraRelatedViolations.includes(type)) {
+      return;
+    }
+    
+    // Skip general security violations based on their respective feature flags
+    if (!FEATURES.FULLSCREEN_REQUIRED && type === 'fullscreen_exit') return;
+    if (!FEATURES.TAB_MONITORING_ENABLED && type === 'tab_switch') return;
+    if (!FEATURES.COPY_PASTE_PREVENTION && (type === 'copy_attempt' || type === 'paste_attempt' || type === 'right_click')) return;
     
     // Cooldown: prevent same violation type within 8 seconds
     const now = Date.now();
@@ -285,19 +296,21 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       };
     });
 
-    // Update status message below camera (always for warnings)
-    const statusMessage = details || type.replace(/_/g, ' ');
-    updateViolationStatus(type, statusMessage);
+    // Update status message below camera (only for camera-related violations if proctoring is enabled)
+    if (isProctoringEnabled) {
+      const statusMessage = details || type.replace(/_/g, ' ');
+      updateViolationStatus(type, statusMessage);
+    }
 
-    // Check if serious popup should be shown
-    if (shouldShowSeriousPopup(type)) {
+    // Check if serious popup should be shown (only for camera-related violations)
+    if (isProctoringEnabled && shouldShowSeriousPopup(type)) {
       lastSeriousPopupTimeRef.current = now;
       onSeriousViolation?.(violation);
     }
 
     // Always call onViolation for logging purposes
     onViolation?.(violation);
-  }, [maxViolations, onAutoSubmit, onViolation, onSeriousViolation, shouldShowSeriousPopup, updateViolationStatus]);
+  }, [maxViolations, onAutoSubmit, onViolation, onSeriousViolation, shouldShowSeriousPopup, updateViolationStatus, isProctoringEnabled]);
 
   // Initialize camera and microphone
   const initializeMedia = useCallback(async () => {
@@ -624,9 +637,9 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   // Request fullscreen
   const requestFullscreen = useCallback(async () => {
-    // Skip fullscreen requirement if both proctoring and fullscreen are disabled
-    if (!isProctoringEnabled && !FEATURES.FULLSCREEN_REQUIRED) {
-      console.log("Proctoring and fullscreen disabled - skipping fullscreen request");
+    // Skip fullscreen if not required
+    if (!FEATURES.FULLSCREEN_REQUIRED) {
+      console.log("Fullscreen disabled - skipping fullscreen request");
       return;
     }
     
@@ -636,12 +649,12 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     } catch (error) {
       console.error("Failed to enter fullscreen:", error);
     }
-  }, [isProctoringEnabled]);
+  }, []);
 
-  // Fullscreen change handler
+  // Fullscreen change handler - works independently of camera proctoring
   useEffect(() => {
-    // Skip fullscreen monitoring if proctoring is disabled
-    if (!isProctoringEnabled) return;
+    // Skip if fullscreen is not required
+    if (!FEATURES.FULLSCREEN_REQUIRED) return;
     
     const handleFullscreenChange = () => {
       const isFullscreen = !!document.fullscreenElement;
@@ -656,12 +669,12 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, [addViolation, isProctoringEnabled]);
+  }, [addViolation]);
 
-  // Tab switch detection
+  // Tab switch detection - works independently of camera proctoring
   useEffect(() => {
-    // Skip tab switch detection if proctoring is disabled
-    if (!isProctoringEnabled) return;
+    // Skip if tab monitoring is disabled
+    if (!FEATURES.TAB_MONITORING_ENABLED) return;
     
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -671,27 +684,31 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [addViolation, isProctoringEnabled]);
+  }, [addViolation]);
 
-  // Window blur handler
+  // Window blur handler - works independently of camera proctoring
   useEffect(() => {
-    // Skip window blur detection if proctoring is disabled
-    if (!isProctoringEnabled) return;
+    // Skip if tab monitoring is disabled
+    if (!FEATURES.TAB_MONITORING_ENABLED) return;
     
     const handleBlur = () => {
-      if (state.isFullscreen) {
+      // Only log as violation if in fullscreen mode (to avoid false positives)
+      if (FEATURES.FULLSCREEN_REQUIRED && state.isFullscreen) {
+        addViolation("tab_switch", "Switched to another application");
+      } else if (!FEATURES.FULLSCREEN_REQUIRED) {
+        // If fullscreen is not required, still log tab switches
         addViolation("tab_switch", "Switched to another application");
       }
     };
 
     window.addEventListener("blur", handleBlur);
     return () => window.removeEventListener("blur", handleBlur);
-  }, [addViolation, state.isFullscreen, isProctoringEnabled]);
+  }, [addViolation, state.isFullscreen]);
 
-  // Prevent copy/paste
+  // Prevent copy/paste - works independently of camera proctoring
   useEffect(() => {
-    // Skip copy/paste prevention if proctoring is disabled
-    if (!isProctoringEnabled) return;
+    // Skip if copy/paste prevention is disabled
+    if (!FEATURES.COPY_PASTE_PREVENTION) return;
     
     const handleCopy = (e: ClipboardEvent) => {
       e.preventDefault();
@@ -716,7 +733,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("contextmenu", handleContextMenu);
     };
-  }, [addViolation, isProctoringEnabled]);
+  }, [addViolation]);
 
   // Cleanup
   useEffect(() => {

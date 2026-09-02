@@ -7,17 +7,15 @@
 
 export const FEATURES = {
   /**
-   * Proctoring Feature Flag
+   * Camera Proctoring Feature Flag
    * 
-   * When false, disables all proctoring functionality:
+   * When false, disables camera-based proctoring functionality:
    * - Camera access and preview
    * - Microphone access
    * - Face detection (single, multiple, no face)
    * - Mobile phone detection
    * - Voice/audio detection
-   * - Violation tracking and logging
-   * - Violation UI elements and popups
-   * - Fullscreen requirement (optional - can be kept separate)
+   * - Camera-related violation UI elements and popups
    * 
    * Assessment functionality preserved:
    * - Questions and answers
@@ -25,16 +23,37 @@ export const FEATURES = {
    * - Manual submit
    * - Navigation
    * - Results
+   * - Fullscreen enforcement (controlled separately)
+   * - Tab monitoring (controlled separately)
    */
   PROCTORING_ENABLED: false,
 
   /**
-   * Fullscreen Requirement
+   * Fullscreen Enforcement
    * 
-   * When false, the exam does not require fullscreen mode.
-   * This is separate from proctoring so it can be independently controlled.
+   * When true, requires fullscreen mode during exam.
+   * Exiting fullscreen will be logged as a violation.
+   * Works independently of camera proctoring.
    */
-  FULLSCREEN_REQUIRED: false,
+  FULLSCREEN_REQUIRED: true,
+
+  /**
+   * Tab Switch Monitoring
+   * 
+   * When true, monitors for tab switches and window blur events.
+   * Switching tabs or windows will be logged as a violation.
+   * Works independently of camera proctoring.
+   */
+  TAB_MONITORING_ENABLED: true,
+
+  /**
+   * Copy/Paste Prevention
+   * 
+   * When true, prevents copy/paste/right-click during exam.
+   * Attempts will be logged as violations.
+   * Works independently of camera proctoring.
+   */
+  COPY_PASTE_PREVENTION: true,
 } as const;
 
 export type Features = typeof FEATURES;

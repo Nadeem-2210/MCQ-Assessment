@@ -126,7 +126,6 @@ export default function ExamPage() {
     durationMinutes: assessment?.duration_minutes || 30,
     startTime: typeof window !== 'undefined' ? localStorage.getItem(`exam_start_${assessmentId}`) || undefined : undefined,
     onTimeUp: handleAutoSubmit,
-    storageKey: `exam_timer_${assessmentId}`,
     enabled: !!assessment && !loading, // Only enable timer after assessment is loaded
   });
 
@@ -162,15 +161,9 @@ export default function ExamPage() {
       }
     }
 
-    // Load flagged questions
-    const savedFlagged = localStorage.getItem(`exam_flagged_${assessmentId}`);
-    if (savedFlagged) {
-      try {
-        setFlaggedQuestions(new Set(JSON.parse(savedFlagged)));
-      } catch (e) {
-        console.error("Failed to parse flagged questions", e);
-      }
-    }
+    // Note: We no longer load flagged questions from localStorage
+    // Flagged questions should be session-specific to avoid confusion
+    // when question order changes
 
     return () => clearTimeout(initTimeout);
   }, [assessmentId]);
@@ -200,12 +193,8 @@ export default function ExamPage() {
     }
   }, [answers, assessmentId]);
 
-  // Save flagged questions
-  useEffect(() => {
-    if (flaggedQuestions.size > 0) {
-      localStorage.setItem(`exam_flagged_${assessmentId}`, JSON.stringify([...flaggedQuestions]));
-    }
-  }, [flaggedQuestions, assessmentId]);
+  // Save flagged questions (session only - not persisted across page reloads)
+  // This prevents issues where flagged question IDs don't match after question shuffle
 
   // Keyboard navigation - 1/2/3/4 or A/B/C/D to select answers
   useEffect(() => {
@@ -454,9 +443,7 @@ export default function ExamPage() {
       // Clear localStorage
       localStorage.removeItem(`attempt_${assessmentId}`);
       localStorage.removeItem(`exam_start_${assessmentId}`);
-      localStorage.removeItem(`exam_timer_${assessmentId}`);
       localStorage.removeItem(`exam_answers_${assessmentId}`);
-      localStorage.removeItem(`exam_flagged_${assessmentId}`);
 
       // Exit fullscreen before redirect
       if (document.fullscreenElement) {

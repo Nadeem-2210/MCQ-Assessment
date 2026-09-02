@@ -39,6 +39,22 @@ export default function AssessmentPreviewPage() {
   const [showAnswers, setShowAnswers] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
 
+  // Force light theme for preview page
+  useEffect(() => {
+    // Store the current theme
+    const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+    
+    // Force light theme for preview
+    document.documentElement.classList.remove('dark');
+    
+    // Restore theme when leaving the page
+    return () => {
+      if (currentTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    };
+  }, []);
+
   useEffect(() => {
     loadExamData();
   }, [assessmentId]);
@@ -152,7 +168,7 @@ export default function AssessmentPreviewPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
@@ -165,7 +181,7 @@ export default function AssessmentPreviewPage() {
   const progress = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-100">
       {/* Preview Banner */}
       <div className="bg-amber-500 text-amber-950 px-4 py-2 text-center text-sm font-medium flex items-center justify-center gap-2">
         <Eye className="w-4 h-4" />
@@ -181,7 +197,7 @@ export default function AssessmentPreviewPage() {
       </div>
 
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b shadow-sm sticky top-0 z-40">
+      <header className="bg-white border-b shadow-sm sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -194,8 +210,8 @@ export default function AssessmentPreviewPage() {
                 Exit Preview
               </Button>
               <div>
-                <h1 className="font-semibold text-gray-900 dark:text-white">{assessment?.name}</h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <h1 className="font-semibold text-gray-900">{assessment?.name}</h1>
+                <p className="text-xs text-gray-500">
                   Question {currentIndex + 1} of {questions.length}
                 </p>
               </div>
@@ -203,7 +219,7 @@ export default function AssessmentPreviewPage() {
 
             <div className="flex items-center gap-3">
               {/* Keyboard Shortcuts Hint */}
-              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">
                 <Keyboard className="w-3 h-3" />
                 1-4 / A-D to select
               </div>
@@ -220,7 +236,7 @@ export default function AssessmentPreviewPage() {
           <div className="mt-3">
             <Progress value={progress} className="h-2" />
             <div className="flex justify-between items-center mt-1">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500">
                 {answeredCount} of {questions.length} answered
               </p>
               {flaggedQuestions.size > 0 && (
@@ -239,7 +255,7 @@ export default function AssessmentPreviewPage() {
         <div className="grid gap-6 lg:grid-cols-4">
           {/* Question Card */}
           <div className="lg:col-span-3">
-            <Card className="shadow-lg dark:bg-gray-800 dark:border-gray-700">
+            <Card className="shadow-lg bg-white border-gray-200">
               <CardContent className="p-6">
                 {/* Question Header */}
                 <div className="flex items-center justify-between mb-4">
@@ -257,7 +273,7 @@ export default function AssessmentPreviewPage() {
 
                 {/* Question */}
                 <div className="mb-6">
-                  <h2 className="text-xl font-medium text-gray-900 dark:text-white leading-relaxed">
+                  <h2 className="text-xl font-medium text-gray-900 leading-relaxed">
                     {currentQuestion?.question_text}
                   </h2>
                 </div>
@@ -275,8 +291,8 @@ export default function AssessmentPreviewPage() {
                         onClick={() => selectAnswer(optionKey)}
                         className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200
                           ${isSelected 
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100 shadow-md' 
-                            : 'border-gray-200 dark:border-gray-600 hover:border-blue-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-md' 
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                           }
                           ${showAnswers && isCorrect 
                             ? 'ring-2 ring-green-500 ring-offset-2' 
@@ -289,12 +305,12 @@ export default function AssessmentPreviewPage() {
                               ? 'bg-blue-500 text-white scale-110' 
                               : showAnswers && isCorrect
                                 ? 'bg-green-500 text-white'
-                                : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                                : 'bg-gray-200 text-gray-600'
                             }`}
                           >
                             {optionKey}
                           </span>
-                          <span className="flex-1 text-base dark:text-gray-200">{optionText}</span>
+                          <span className="flex-1 text-base text-gray-800">{optionText}</span>
                           {isSelected && <CheckCircle className="w-6 h-6 text-blue-500" />}
                           {showAnswers && isCorrect && (
                             <Badge className="bg-green-500 text-white">Correct</Badge>
@@ -307,16 +323,16 @@ export default function AssessmentPreviewPage() {
 
                 {/* Show Answer Explanation in Preview */}
                 {showAnswers && (
-                  <Alert className="mt-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
+                  <Alert className="mt-4 bg-green-50 border-green-200">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800 dark:text-green-200">
+                    <AlertDescription className="text-green-800">
                       Correct answer: <strong>{currentQuestion?.correct_answer}</strong>
                     </AlertDescription>
                   </Alert>
                 )}
 
                 {/* Navigation */}
-                <div className="flex items-center justify-between mt-8 pt-6 border-t dark:border-gray-700">
+                <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
                   <Button
                     variant="outline"
                     onClick={() => goToQuestion(currentIndex - 1)}
@@ -327,7 +343,7 @@ export default function AssessmentPreviewPage() {
                     Previous
                   </Button>
 
-                  <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                  <span className="text-sm text-gray-500 font-medium">
                     {currentIndex + 1} / {questions.length}
                   </span>
 
@@ -347,25 +363,25 @@ export default function AssessmentPreviewPage() {
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-4">
             {/* Preview Score Card */}
-            <Card className="shadow-lg bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
+            <Card className="shadow-lg bg-blue-50 border-blue-200">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Info className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-semibold text-blue-900 dark:text-blue-100">Preview Score</h3>
+                  <h3 className="font-semibold text-blue-900">Preview Score</h3>
                 </div>
-                <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                <div className="text-3xl font-bold text-blue-700">
                   {calculateScore()} / {questions.length}
                 </div>
-                <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                <p className="text-sm text-blue-600 mt-1">
                   {Math.round((calculateScore() / questions.length) * 100)}% correct
                 </p>
               </CardContent>
             </Card>
 
             {/* Question Navigator */}
-            <Card className="shadow-lg dark:bg-gray-800 dark:border-gray-700 sticky top-28">
+            <Card className="shadow-lg bg-white border-gray-200 sticky top-28">
               <CardContent className="p-4">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Question Navigator</h3>
+                <h3 className="font-semibold text-gray-900 mb-3">Question Navigator</h3>
                 <div className="grid grid-cols-5 gap-2">
                   {questions.map((q, index) => {
                     const isAnswered = answers[q.id] !== null && answers[q.id] !== undefined;
@@ -382,13 +398,13 @@ export default function AssessmentPreviewPage() {
                             ? 'bg-blue-600 text-white ring-2 ring-blue-300 ring-offset-2' 
                             : showAnswers
                               ? isCorrectlyAnswered
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                ? 'bg-green-100 text-green-800'
                                 : isAnswered
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-600'
                               : isAnswered 
-                                ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
+                                ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                       >
                         {index + 1}
@@ -400,44 +416,44 @@ export default function AssessmentPreviewPage() {
                   })}
                 </div>
 
-                <div className="mt-4 pt-4 border-t dark:border-gray-700 space-y-2 text-xs">
+                <div className="mt-4 pt-4 border-t border-gray-200 space-y-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700" />
-                    <span className="text-gray-600 dark:text-gray-400">Answered ({answeredCount})</span>
+                    <div className="w-4 h-4 rounded bg-green-100 border border-green-300" />
+                    <span className="text-gray-600">Answered ({answeredCount})</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600" />
-                    <span className="text-gray-600 dark:text-gray-400">Not Answered ({questions.length - answeredCount})</span>
+                    <div className="w-4 h-4 rounded bg-gray-100 border border-gray-300" />
+                    <span className="text-gray-600">Not Answered ({questions.length - answeredCount})</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded bg-blue-600" />
-                    <span className="text-gray-600 dark:text-gray-400">Current</span>
+                    <span className="text-gray-600">Current</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Flag className="w-4 h-4 text-orange-500 fill-orange-500" />
-                    <span className="text-gray-600 dark:text-gray-400">Flagged ({flaggedQuestions.size})</span>
+                    <span className="text-gray-600">Flagged ({flaggedQuestions.size})</span>
                   </div>
                 </div>
 
                 {/* Keyboard Shortcuts */}
-                <div className="mt-4 pt-4 border-t dark:border-gray-700">
-                  <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">KEYBOARD SHORTCUTS</h4>
-                  <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <h4 className="text-xs font-semibold text-gray-500 mb-2">KEYBOARD SHORTCUTS</h4>
+                  <div className="space-y-1 text-xs text-gray-600">
                     <div className="flex justify-between">
                       <span>Select option</span>
-                      <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">1-4 or A-D</span>
+                      <span className="font-mono bg-gray-100 px-1 rounded">1-4 or A-D</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Previous</span>
-                      <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">←</span>
+                      <span className="font-mono bg-gray-100 px-1 rounded">←</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Next</span>
-                      <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">→</span>
+                      <span className="font-mono bg-gray-100 px-1 rounded">→</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Flag question</span>
-                      <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">F</span>
+                      <span className="font-mono bg-gray-100 px-1 rounded">F</span>
                     </div>
                   </div>
                 </div>
@@ -449,7 +465,7 @@ export default function AssessmentPreviewPage() {
 
       {/* Exit Preview Dialog */}
       <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-        <DialogContent className="bg-white dark:bg-gray-800">
+        <DialogContent className="bg-white">
           <DialogHeader>
             <DialogTitle>Exit Preview?</DialogTitle>
             <DialogDescription>

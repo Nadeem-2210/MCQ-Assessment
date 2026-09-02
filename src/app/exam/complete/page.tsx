@@ -1,50 +1,79 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Sparkles, PartyPopper } from "lucide-react";
 import { Suspense } from "react";
 
 function ExamCompleteContent() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md text-center dark:bg-gray-800 dark:border-gray-700">
-        <CardHeader>
-          <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md text-center border-0 shadow-2xl overflow-hidden">
+        {/* Header with celebration gradient */}
+        <div className="bg-gradient-to-br from-green-500 via-green-600 to-emerald-700 px-8 pt-10 pb-12 relative overflow-hidden">
+          {/* Background decorations */}
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+          <div className="absolute top-4 left-8 w-2 h-2 bg-yellow-300 rounded-full animate-pulse" />
+          <div className="absolute top-12 right-12 w-3 h-3 bg-yellow-200 rounded-full animate-pulse delay-100" />
+          <div className="absolute bottom-8 right-8 w-2 h-2 bg-white/40 rounded-full animate-pulse delay-200" />
+          
+          <div className="relative">
+            <div className="mx-auto w-24 h-24 bg-white/20 backdrop-blur-sm rounded-3xl flex items-center justify-center mb-5 shadow-xl border border-white/30 animate-bounce-slow">
+              <CheckCircle className="w-14 h-14 text-white" />
             </div>
+            <CardTitle className="text-3xl font-bold text-white mb-2">
+              Well Done!
+            </CardTitle>
+            <CardDescription className="text-green-100 text-base">
+              Your exam has been submitted successfully
+            </CardDescription>
           </div>
-          <CardTitle className="text-2xl dark:text-white">
-            Exam Submitted
-          </CardTitle>
-          <CardDescription className="dark:text-gray-400">
-            Thank you for completing the assessment
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Simple confirmation message */}
-          <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6">
-            <p className="text-gray-700 dark:text-gray-300">
-              Your responses have been recorded successfully.
+        </div>
+
+        <CardContent className="p-8 space-y-6">
+          {/* Success Message Box */}
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <PartyPopper className="w-6 h-6 text-amber-500" />
+              <p className="text-lg font-semibold text-gray-800">Submission Confirmed</p>
+            </div>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              All your responses have been recorded and saved securely. 
+              You can safely close this window now.
             </p>
           </div>
 
-          {/* Info */}
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Your results will be shared with you by the administrator. You may close this window.
-          </p>
+          {/* Info Box */}
+          <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+            <p className="text-sm text-blue-700">
+              <span className="font-medium">What's next?</span> Your results will be reviewed and shared with you by the administrator.
+            </p>
+          </div>
 
-          {/* Branding */}
-          <div className="pt-4 border-t dark:border-gray-700">
+          {/* Footer Branding */}
+          <div className="pt-4 border-t border-gray-100">
             <div className="flex items-center justify-center gap-2 text-gray-400">
-              <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
-                <span className="text-white font-bold text-xs">K</span>
-              </div>
-              <span className="text-sm">Kadel Labs MCQ Assessment</span>
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm font-medium">Powered by Kadel Labs</span>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Add custom animation */}
+      <style jsx global>{`
+        @keyframes bounce-slow {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-10px);
+          }
+        }
+        .animate-bounce-slow {
+          animation: bounce-slow 3s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }
@@ -52,8 +81,8 @@ function ExamCompleteContent() {
 export default function ExamCompletePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex items-center justify-center">
+        <div className="animate-pulse text-gray-500">Loading...</div>
       </div>
     }>
       <ExamCompleteContent />

@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/client";
 import { Assessment } from "@/types";
 import { FEATURES } from "@/config/features";
-import { Loader2, Clock, FileText, AlertCircle, Shield, Calendar } from "lucide-react";
+import { Loader2, Clock, FileText, AlertCircle, Shield, Calendar, User, Mail, ArrowRight, BookOpen, Sparkles } from "lucide-react";
 
 // Helper function to check if assessment is within scheduled window
 function checkScheduleStatus(assessment: Assessment): { available: boolean; message: string } {
@@ -177,7 +177,7 @@ export default function ExamRegisterPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
@@ -185,11 +185,13 @@ export default function ExamRegisterPage() {
 
   if (!assessment) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <CardTitle>Assessment Not Available</CardTitle>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-0 shadow-xl">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <CardTitle className="text-xl">Assessment Not Available</CardTitle>
             <CardDescription>
               {error || "This assessment is no longer active or does not exist."}
             </CardDescription>
@@ -200,44 +202,66 @@ export default function ExamRegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-2xl">K</span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg border-0 shadow-2xl overflow-hidden">
+        {/* Header with gradient */}
+        <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-8 pt-8 pb-10 text-center relative overflow-hidden">
+          {/* Background decorations */}
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+          
+          <div className="relative">
+            <div className="mx-auto w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4 shadow-lg border border-white/30">
+              <BookOpen className="w-8 h-8 text-white" />
             </div>
+            <CardTitle className="text-2xl font-bold text-white mb-2">{assessment.name}</CardTitle>
+            <CardDescription className="text-blue-100">
+              Enter your details to begin the assessment
+            </CardDescription>
           </div>
-          <CardTitle className="text-2xl">{assessment.name}</CardTitle>
-          <CardDescription>
-            Please register to begin the assessment
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Assessment Info */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-              <FileText className="w-4 h-4 text-gray-500" />
-              <span>{assessment.num_questions} Questions</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="w-4 h-4 text-gray-500" />
-              <span>{assessment.duration_minutes} Minutes</span>
-            </div>
-            {(assessment.starts_at || assessment.ends_at) && (
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <span>
-                  {assessment.starts_at && assessment.ends_at 
-                    ? `${new Date(assessment.starts_at).toLocaleDateString()} - ${new Date(assessment.ends_at).toLocaleDateString()}`
-                    : assessment.starts_at 
-                      ? `Starts ${new Date(assessment.starts_at).toLocaleDateString()}`
-                      : `Ends ${new Date(assessment.ends_at!).toLocaleDateString()}`
-                  }
-                </span>
+        </div>
+
+        <CardContent className="p-8">
+          {/* Assessment Info Cards */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-blue-700">{assessment.num_questions}</p>
+                  <p className="text-xs text-blue-600">Questions</p>
+                </div>
               </div>
-            )}
+            </div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl p-4 border border-green-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-green-700">{assessment.duration_minutes}</p>
+                  <p className="text-xs text-green-600">Minutes</p>
+                </div>
+              </div>
+            </div>
           </div>
+
+          {/* Schedule Info */}
+          {(assessment.starts_at || assessment.ends_at) && (
+            <div className="flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <Calendar className="w-5 h-5 text-gray-500" />
+              <span className="text-sm text-gray-600">
+                {assessment.starts_at && assessment.ends_at 
+                  ? `${new Date(assessment.starts_at).toLocaleDateString()} - ${new Date(assessment.ends_at).toLocaleDateString()}`
+                  : assessment.starts_at 
+                    ? `Starts ${new Date(assessment.starts_at).toLocaleDateString()}`
+                    : `Ends ${new Date(assessment.ends_at!).toLocaleDateString()}`
+                }
+              </span>
+            </div>
+          )}
 
           {/* Schedule Not Available Warning */}
           {!scheduleStatus.available && (
@@ -260,58 +284,81 @@ export default function ExamRegisterPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+              <Alert variant="destructive" className="bg-red-50 border-red-200 py-3">
+                <AlertDescription className="text-red-700 text-sm">{error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                placeholder="John Doe"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                disabled={submitting}
-              />
+              <Label htmlFor="name" className="text-gray-700 font-medium text-sm">Full Name</Label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input
+                  id="name"
+                  placeholder="Enter your full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  disabled={submitting}
+                  className="pl-11 h-12 bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="john@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={submitting}
-              />
+              <Label htmlFor="email" className="text-gray-700 font-medium text-sm">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={submitting}
+                  className="pl-11 h-12 bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
+                />
+              </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={submitting || !scheduleStatus.available}>
+            <Button 
+              type="submit" 
+              className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-base shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all duration-200 rounded-xl mt-2" 
+              disabled={submitting || !scheduleStatus.available}
+            >
               {submitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Registering...
                 </>
               ) : !scheduleStatus.available ? (
                 "Assessment Not Available"
               ) : (
-                "Continue to Exam Setup"
+                <>
+                  Continue to Exam
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </>
               )}
             </Button>
           </form>
 
-          <p className="text-xs text-gray-500 text-center mt-4">
+          <p className="text-xs text-gray-400 text-center mt-6">
             {isProctoringEnabled 
               ? "By continuing, you agree to the proctoring requirements and confirm that you will complete this assessment honestly."
               : "By continuing, you confirm that you will complete this assessment honestly."
             }
           </p>
+
+          {/* Footer */}
+          <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+            <p className="text-xs text-gray-400 flex items-center justify-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              Powered by Kadel Labs
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

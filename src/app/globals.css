@@ -113,3 +113,83 @@ body {
 .animate-pulse-warning {
   animation: pulse-warning 1s ease-in-out infinite;
 }
+
+/* Toast slide-in animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Dark mode transitions */
+html {
+  color-scheme: light dark;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Smooth theme transition */
+* {
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+/* Dark mode specific styles */
+.dark body {
+  background-color: hsl(222.2 84% 4.9%);
+  color: hsl(210 40% 98%);
+}
+
+.dark .bg-white {
+  background-color: hsl(222.2 84% 8%) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: hsl(222.2 84% 6%) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: hsl(222.2 84% 10%) !important;
+}
+
+.dark .border-gray-200 {
+  border-color: hsl(217.2 32.6% 17.5%) !important;
+}
+
+.dark .text-gray-900 {
+  color: hsl(210 40% 98%) !important;
+}
+
+.dark .text-gray-600 {
+  color: hsl(215 20.2% 65.1%) !important;
+}
+
+.dark .text-gray-500 {
+  color: hsl(215 20.2% 55.1%) !important;
+}
+
+/* Dark mode for cards */
+.dark .border {
+  border-color: hsl(217.2 32.6% 20%);
+}
+
+/* Ensure buttons maintain visibility in dark mode */
+.dark [data-variant="outline"] {
+  border-color: hsl(217.2 32.6% 30%);
+  color: hsl(210 40% 98%);
+}
+
+/* Progress bar dark mode */
+.dark [role="progressbar"] > div {
+  background-color: hsl(217.2 91.2% 59.8%);
+}

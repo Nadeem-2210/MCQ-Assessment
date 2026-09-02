@@ -26,10 +26,11 @@ import {
   mapDisplayAnswerToOriginal,
   OptionKey 
 } from "@/lib/option-randomizer";
+import { addToast } from "@/components/ui/toast";
 import { 
   Clock, ChevronLeft, ChevronRight, AlertTriangle, 
   Camera, Send, Loader2, CheckCircle, Flag, Mic, Timer, Lock,
-  Eye, EyeOff, Users, Smartphone, Volume2, XCircle
+  Eye, EyeOff, Users, Smartphone, Volume2, XCircle, Save, Keyboard
 } from "lucide-react";
 
 export default function ExamPage() {
@@ -49,6 +50,10 @@ export default function ExamPage() {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isExamExpired, setIsExamExpired] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'saving' | 'submitting' | 'submitted'>('idle');
+  
+  // New: Save indicator state
+  const [showSaveIndicator, setShowSaveIndicator] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // New: Serious violation popup state
   const [showSeriousViolationDialog, setShowSeriousViolationDialog] = useState(false);
@@ -119,6 +124,7 @@ export default function ExamPage() {
     startTime: typeof window !== 'undefined' ? localStorage.getItem(`exam_start_${assessmentId}`) || undefined : undefined,
     onTimeUp: handleAutoSubmit,
     storageKey: `exam_timer_${assessmentId}`,
+    enabled: !!assessment && !loading, // Only enable timer after assessment is loaded
   });
 
   // Effect to handle timer expiration
@@ -170,6 +176,24 @@ export default function ExamPage() {
   useEffect(() => {
     if (Object.keys(answers).length > 0) {
       localStorage.setItem(`exam_answers_${assessmentId}`, JSON.stringify(answers));
+      
+      // Show save indicator
+      setShowSaveIndicator(true);
+      
+      // Clear previous timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      
+      // Hide after 2 seconds
+      saveTimeoutRef.current = setTimeout(() => {
+        setShowSaveIndicator(false);
+      }, 2000);
+      
+      // Show toast for first save or significant saves
+      if (Object.keys(answers).length === 1) {
+        addToast("Progress auto-saving enabled", "info");
+      }
     }
   }, [answers, assessmentId]);
 
@@ -179,6 +203,48 @@ export default function ExamPage() {
       localStorage.setItem(`exam_flagged_${assessmentId}`, JSON.stringify([...flaggedQuestions]));
     }
   }, [flaggedQuestions, assessmentId]);
+
+  // Keyboard navigation - 1/2/3/4 or A/B/C/D to select answers
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if exam is disabled or user is typing in an input
+      if (isExamExpired || submissionStatus !== 'idle') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      const key = e.key.toUpperCase();
+      
+      // Map keys to answers
+      const keyMap: Record<string, 'A' | 'B' | 'C' | 'D'> = {
+        '1': 'A', '2': 'B', '3': 'C', '4': 'D',
+        'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D',
+      };
+      
+      if (keyMap[key]) {
+        e.preventDefault();
+        selectAnswer(keyMap[key]);
+        addToast(`Selected option ${keyMap[key]}`, "success");
+      }
+      
+      // Arrow keys for navigation
+      if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        e.preventDefault();
+        goToQuestion(currentIndex - 1);
+      }
+      if (e.key === 'ArrowRight' && currentIndex < questions.length - 1) {
+        e.preventDefault();
+        goToQuestion(currentIndex + 1);
+      }
+      
+      // F key to toggle flag
+      if (key === 'F') {
+        e.preventDefault();
+        toggleFlag();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, questions.length, isExamExpired, submissionStatus]);
 
   // Save violations to database periodically
   useEffect(() => {
@@ -395,8 +461,25 @@ export default function ExamPage() {
         await document.exitFullscreen().catch(() => {});
       }
 
+      // Get trainee info for completion page
+      const { data: attemptData } = await supabase
+        .from("attempts")
+        .select("trainee_name, trainee_email")
+        .eq("id", attemptId)
+        .single();
+
+      // Build completion URL with all info for email/certificate features
+      const completionParams = new URLSearchParams({
+        score: score.toString(),
+        total: questionsWithAnswers.length.toString(),
+        violations: proctoringState.violations.length.toString(),
+        name: attemptData?.trainee_name || "",
+        email: attemptData?.trainee_email || "",
+        assessment: assessment?.name || "",
+      });
+
       // Redirect to completion page
-      router.push(`/exam/complete?score=${score}&total=${questionsWithAnswers.length}&violations=${proctoringState.violations.length}`);
+      router.push(`/exam/complete?${completionParams.toString()}`);
     } catch (error) {
       console.error("Submit error:", error);
       isSubmittingRef.current = false;
@@ -469,6 +552,20 @@ export default function ExamPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Save Indicator */}
+              {showSaveIndicator && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-100 text-green-700 animate-pulse">
+                  <Save className="w-4 h-4" />
+                  Saved
+                </div>
+              )}
+              
+              {/* Keyboard Shortcuts Hint */}
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">
+                <Keyboard className="w-3 h-3" />
+                1-4 / A-D to select
+              </div>
+              
               {/* Violations counter - subtle - Only show if proctoring is enabled */}
               {isProctoringEnabled && proctoringState.violations.length > 0 && (
                 <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${

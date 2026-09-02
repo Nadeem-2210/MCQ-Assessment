@@ -6,7 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:headed": "npx playwright test --headed",
+    "test:report": "npx playwright show-report",
+    "test:landing": "npx playwright test tests/specs/01-landing-page.spec.ts",
+    "test:login": "npx playwright test tests/specs/02-admin-login.spec.ts",
+    "test:dashboard": "npx playwright test tests/specs/03-admin-dashboard.spec.ts",
+    "test:create": "npx playwright test tests/specs/04-create-assessment.spec.ts",
+    "test:registration": "npx playwright test tests/specs/05-exam-registration.spec.ts",
+    "test:complete": "npx playwright test tests/specs/06-exam-complete.spec.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.23",
@@ -31,12 +41,14 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

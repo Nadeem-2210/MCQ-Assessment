@@ -29,10 +29,11 @@ import { createClient } from "@/lib/supabase/client";
 import { Assessment, ParsedQuestion } from "@/types";
 import { formatDate, generateExamLink } from "@/lib/utils";
 import { parseExcelFile, validateExcelStructure } from "@/lib/excel-parser";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   Plus, Copy, ExternalLink, LogOut, FileText, Users, Clock, 
   Trash2, Edit, Loader2, MoreVertical, Upload, FileSpreadsheet,
-  CheckCircle, AlertTriangle, RefreshCw
+  CheckCircle, AlertTriangle, RefreshCw, BarChart2, Eye
 } from "lucide-react";
 
 export default function AdminDashboardPage() {
@@ -288,10 +289,19 @@ export default function AdminDashboardPage() {
               <p className="text-xs text-gray-500">Admin Dashboard</p>
             </div>
           </div>
-          <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/admin/analytics">
+              <Button variant="outline">
+                <BarChart2 className="w-4 h-4 mr-2" />
+                Analytics
+              </Button>
+            </Link>
+            <ThemeToggle />
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 

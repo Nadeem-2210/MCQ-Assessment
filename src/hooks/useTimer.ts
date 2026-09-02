@@ -7,19 +7,27 @@ interface UseTimerOptions {
   startTime?: string;
   onTimeUp?: () => void;
   storageKey?: string;
+  enabled?: boolean; // New: only start timer when enabled
 }
 
 export function useTimer(options: UseTimerOptions) {
-  const { durationMinutes, startTime, onTimeUp, storageKey } = options;
+  const { durationMinutes, startTime, onTimeUp, storageKey, enabled = true } = options;
   
   // Ref to track if onTimeUp was already called to prevent duplicates
   const timeUpCalledRef = useRef(false);
   const onTimeUpRef = useRef(onTimeUp);
+  const initializedRef = useRef(false);
+  const durationRef = useRef(durationMinutes);
   
   // Keep the callback ref updated
   useEffect(() => {
     onTimeUpRef.current = onTimeUp;
   }, [onTimeUp]);
+  
+  // Track when duration changes (assessment loaded)
+  useEffect(() => {
+    durationRef.current = durationMinutes;
+  }, [durationMinutes]);
   
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
     if (typeof window === 'undefined') {
@@ -51,7 +59,7 @@ export function useTimer(options: UseTimerOptions) {
     return durationMinutes * 60;
   });
 
-  const [isRunning, setIsRunning] = useState(true);
+  const [isRunning, setIsRunning] = useState(false); // Start as false, enable when ready
   const [hasEnded, setHasEnded] = useState(() => {
     // Check if timer already ended on mount
     if (typeof window === 'undefined') return false;
@@ -68,16 +76,53 @@ export function useTimer(options: UseTimerOptions) {
     return false;
   });
 
+  // Recalculate time when duration changes (assessment loads) - only once
+  useEffect(() => {
+    if (!enabled || initializedRef.current) return;
+    
+    // Only recalculate if we don't have a stored value and assessment just loaded
+    if (typeof window !== 'undefined' && storageKey) {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const remaining = parseInt(stored, 10);
+        if (!isNaN(remaining)) {
+          // Use stored value
+          initializedRef.current = true;
+          setIsRunning(remaining > 0);
+          return;
+        }
+      }
+    }
+    
+    // Calculate based on start time and actual duration
+    if (startTime && durationMinutes > 0) {
+      const start = new Date(startTime).getTime();
+      const now = Date.now();
+      const elapsed = Math.floor((now - start) / 1000);
+      const total = durationMinutes * 60;
+      const remaining = Math.max(0, total - elapsed);
+      
+      setTimeRemaining(remaining);
+      initializedRef.current = true;
+      setIsRunning(remaining > 0);
+    } else if (durationMinutes > 0) {
+      // No start time, use full duration
+      setTimeRemaining(durationMinutes * 60);
+      initializedRef.current = true;
+      setIsRunning(true);
+    }
+  }, [enabled, durationMinutes, startTime, storageKey]);
+
   // Save to localStorage periodically
   useEffect(() => {
-    if (storageKey && typeof window !== 'undefined') {
+    if (storageKey && typeof window !== 'undefined' && initializedRef.current) {
       localStorage.setItem(storageKey, timeRemaining.toString());
     }
   }, [timeRemaining, storageKey]);
 
   // Timer countdown
   useEffect(() => {
-    if (!isRunning || hasEnded) return;
+    if (!isRunning || hasEnded || !enabled) return;
 
     const interval = setInterval(() => {
       setTimeRemaining(prev => {
@@ -101,11 +146,11 @@ export function useTimer(options: UseTimerOptions) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, hasEnded]);
+  }, [isRunning, hasEnded, enabled]);
 
   // Check if time already ended on mount (for page refresh scenarios)
   useEffect(() => {
-    if (timeRemaining === 0 && !timeUpCalledRef.current && !hasEnded) {
+    if (timeRemaining === 0 && !timeUpCalledRef.current && !hasEnded && enabled && initializedRef.current) {
       timeUpCalledRef.current = true;
       setHasEnded(true);
       setIsRunning(false);
@@ -113,7 +158,7 @@ export function useTimer(options: UseTimerOptions) {
         onTimeUpRef.current?.();
       }, 0);
     }
-  }, []);
+  }, [enabled, hasEnded, timeRemaining]);
 
   const pause = useCallback(() => {
     setIsRunning(false);

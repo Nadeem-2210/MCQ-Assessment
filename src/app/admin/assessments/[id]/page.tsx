@@ -33,6 +33,7 @@ import {
   XCircle, AlertTriangle, ExternalLink, Trash2, Eye, Loader2,
   Upload, RefreshCw, FileSpreadsheet, Calendar, Shuffle
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface AttemptWithResponses extends Attempt {
   responses?: (Response & { question?: Question })[];
@@ -323,6 +324,13 @@ export default function AssessmentDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link href={`/admin/assessments/${assessmentId}/preview`}>
+              <Button variant="outline" size="sm">
+                <Eye className="w-4 h-4 mr-2" />
+                Preview
+              </Button>
+            </Link>
+            <ThemeToggle />
             <Badge
               variant={assessment.is_active ? "success" : "secondary"}
               className="cursor-pointer"

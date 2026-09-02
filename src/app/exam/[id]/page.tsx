@@ -63,6 +63,7 @@ export default function ExamPage() {
   const isSubmittingRef = useRef(false);
   const answersRef = useRef(answers);
   const questionsLoadedRef = useRef(false);
+  const submitExamRef = useRef<((isAutoSubmit: boolean) => Promise<void>) | null>(null);
 
   // Keep answers ref updated
   useEffect(() => {
@@ -81,8 +82,10 @@ export default function ExamPage() {
     // Wait a short moment for any pending answer saves
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    // Perform submission with latest answers
-    submitExam(true);
+    // Perform submission with latest answers using ref
+    if (submitExamRef.current) {
+      submitExamRef.current(true);
+    }
   }, [submissionStatus]);
 
   // Handler for serious violations (shows popup)
@@ -364,7 +367,6 @@ export default function ExamPage() {
     setSubmitting(true);
     setShowSubmitDialog(false);
     setSubmissionStatus('saving');
-
     // Use the ref to get the latest answers
     const currentAnswers = answersRef.current;
 
@@ -487,6 +489,11 @@ export default function ExamPage() {
       setSubmissionStatus('idle');
     }
   };
+
+  // Keep submitExam ref updated so auto-submit can access latest version
+  useEffect(() => {
+    submitExamRef.current = submitExam;
+  });
 
   // Get camera frame border color based on status
   const getCameraFrameColor = (status: ViolationStatus, faceStatus: string) => {

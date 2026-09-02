@@ -16,7 +16,6 @@ interface AnalyticsData {
   averageScore: number;
   averageCompletionTime: number; // in minutes
   scoreDistribution: { range: string; count: number }[];
-  completionTimeDistribution: { range: string; count: number }[];
   passRate: number;
 }
 
@@ -67,7 +66,6 @@ export function AnalyticsDashboard({ assessmentId }: AnalyticsDashboardProps) {
         averageScore: 0,
         averageCompletionTime: 0,
         scoreDistribution: [],
-        completionTimeDistribution: [],
         passRate: 0,
       });
       setLoading(false);
@@ -118,20 +116,6 @@ export function AnalyticsDashboard({ assessmentId }: AnalyticsDashboardProps) {
         return percentage >= range.min && percentage <= range.max;
       }).length,
     }));
-    
-    // Completion time distribution
-    const timeRanges = [
-      { range: "0-10 min", min: 0, max: 10 },
-      { range: "11-20 min", min: 11, max: 20 },
-      { range: "21-30 min", min: 21, max: 30 },
-      { range: "31-45 min", min: 31, max: 45 },
-      { range: "45+ min", min: 46, max: Infinity },
-    ];
-    
-    const completionTimeDistribution = timeRanges.map(range => ({
-      range: range.range,
-      count: completionTimes.filter(t => t >= range.min && t <= range.max).length,
-    }));
 
     setData({
       totalAttempts,
@@ -140,7 +124,6 @@ export function AnalyticsDashboard({ assessmentId }: AnalyticsDashboardProps) {
       averageScore,
       averageCompletionTime,
       scoreDistribution,
-      completionTimeDistribution,
       passRate: totalAttempts > 0 ? (passedAttempts / totalAttempts) * 100 : 0,
     });
     
@@ -156,7 +139,6 @@ export function AnalyticsDashboard({ assessmentId }: AnalyticsDashboardProps) {
   }
 
   const maxScoreCount = Math.max(...(data?.scoreDistribution.map(d => d.count) || [1]));
-  const maxTimeCount = Math.max(...(data?.completionTimeDistribution.map(d => d.count) || [1]));
 
   return (
     <div className="space-y-6">
@@ -338,39 +320,6 @@ export function AnalyticsDashboard({ assessmentId }: AnalyticsDashboardProps) {
           </CardContent>
         </Card>
       </div>
-
-      {/* Completion Time Distribution */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Completion Time Distribution
-          </CardTitle>
-          <CardDescription>
-            How long trainees take to complete the assessment
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-2 h-40">
-            {data?.completionTimeDistribution.map((item, index) => (
-              <div key={item.range} className="flex-1 flex flex-col items-center justify-end">
-                <div className="text-sm font-medium mb-1">{item.count}</div>
-                <div
-                  className="w-full bg-blue-500 rounded-t-md transition-all duration-500"
-                  style={{ 
-                    height: `${maxTimeCount > 0 ? (item.count / maxTimeCount) * 100 : 0}%`,
-                    minHeight: item.count > 0 ? '20px' : '4px',
-                    backgroundColor: item.count === 0 ? '#e5e7eb' : undefined
-                  }}
-                />
-                <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 text-center">
-                  {item.range}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
